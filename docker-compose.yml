@@ -28,3 +28,45 @@ services:
     ports:
       - "5672:5672"   # Message port
       - "15672:15672" # Management UI port
+
+  discovery-server:
+    build:
+      context: ./discovery-server
+      dockerfile: Dockerfile
+    container_name: discovery-server
+    environment:
+      EUREKA_HOSTNAME: discovery-server
+    ports:
+      - "8761:8761"
+
+  user-service:
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    container_name: user-service
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/user_db
+      DB_USERNAME: admin
+      DB_PASSWORD: password
+      EUREKA_SERVER_URL: http://discovery-server:8761/eureka/
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
+    depends_on:
+      - postgres
+      - discovery-server
+    ports:
+      - "8081:8081"
+
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: api-gateway
+    environment:
+      EUREKA_SERVER_URL: http://discovery-server:8761/eureka/
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
+    depends_on:
+      - discovery-server
+      - user-service
+    ports:
+      - "8080:8080"
