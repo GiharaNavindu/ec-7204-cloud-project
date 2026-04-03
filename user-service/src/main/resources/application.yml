@@ -10,7 +10,14 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
+    show-sql: false
+
 eureka:
   client:
     service-url:
       defaultZone: http://localhost:8761/eureka/
+
+app:
+  jwt:
+    secret: "your-super-secret-key-change-this-in-production-environment-make-it-very-long"
+    expiration: 86400000  # 24 hours in milliseconds
