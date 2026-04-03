@@ -4,9 +4,9 @@ spring:
   application:
     name: user-service
   datasource:
-    url: jdbc:postgresql://localhost:5433/user_db
-    username: admin
-    password: password
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/user_db}
+    username: ${DB_USERNAME:admin}
+    password: ${DB_PASSWORD:password}
   jpa:
     hibernate:
       ddl-auto: update
@@ -15,9 +15,9 @@ spring:
 eureka:
   client:
     service-url:
-      defaultZone: http://localhost:8761/eureka/
+      defaultZone: ${EUREKA_SERVER_URL:http://localhost:8761/eureka/}
 
 app:
   jwt:
-    secret: "your-super-secret-key-change-this-in-production-environment-make-it-very-long"
-    expiration: 86400000  # 24 hours in milliseconds
+    secret: ${JWT_SECRET}
+    expiration: ${JWT_EXPIRATION:86400000}

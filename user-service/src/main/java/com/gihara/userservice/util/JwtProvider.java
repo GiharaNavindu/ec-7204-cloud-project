@@ -11,15 +11,23 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
+import jakarta.annotation.PostConstruct;
 
 @Component
 public class JwtProvider {
 
-    @Value("${app.jwt.secret:your-super-secret-key-change-this-in-production-environment}")
+    @Value("${app.jwt.secret}")
     private String jwtSecret;
 
     @Value("${app.jwt.expiration:86400000}")
     private long jwtExpirationInMs;
+
+    @PostConstruct
+    void validateSecret() {
+        if (jwtSecret == null || jwtSecret.length() < 64) {
+            throw new IllegalStateException("JWT secret must be set and at least 64 characters long");
+        }
+    }
 
     public String generateToken(String email) {
         SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes());

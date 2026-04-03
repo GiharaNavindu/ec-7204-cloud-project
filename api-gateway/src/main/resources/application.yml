@@ -15,8 +15,8 @@ spring:
 eureka:
   client:
     service-url:
-      defaultZone: http://localhost:8761/eureka/
+      defaultZone: ${EUREKA_SERVER_URL:http://localhost:8761/eureka/}
 
 app:
   jwt:
-    secret: "your-super-secret-key-change-this-in-production-environment-make-it-very-long"
+    secret: ${JWT_SECRET}

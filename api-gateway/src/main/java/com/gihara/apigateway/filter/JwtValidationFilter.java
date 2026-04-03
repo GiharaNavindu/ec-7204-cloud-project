@@ -10,6 +10,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import jakarta.annotation.PostConstruct;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -18,8 +19,15 @@ import jakarta.servlet.http.HttpServletResponse;
 @Component
 public class JwtValidationFilter extends OncePerRequestFilter {
 
-    @Value("${app.jwt.secret:your-super-secret-key-change-this-in-production-environment-make-it-very-long}")
+    @Value("${app.jwt.secret}")
     private String jwtSecret;
+
+    @PostConstruct
+    void validateSecret() {
+        if (jwtSecret == null || jwtSecret.length() < 64) {
+            throw new IllegalStateException("JWT secret must be set and at least 64 characters long");
+        }
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
