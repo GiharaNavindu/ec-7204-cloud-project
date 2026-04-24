@@ -9,13 +9,9 @@ spring:
         webmvc:
           routes:
             - id: user-service
-              uri: lb://USER-SERVICE
+              uri: ${USER_SERVICE_URL:http://localhost:8081}
               predicates:
                 - Path=/api/users/**
-eureka:
-  client:
-    service-url:
-      defaultZone: ${EUREKA_SERVER_URL:http://localhost:8761/eureka/}
 
 app:
   jwt:
