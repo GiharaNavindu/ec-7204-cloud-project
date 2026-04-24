@@ -1,33 +1,18 @@
 version: '3.8'
+
 services:
   postgres:
-    image: postgres:15-alpine
+    image: postgres
     container_name: auction-postgres
     environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: user_db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: postgres
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - postgres_data:/var/lib/postgresql/data
     ports:
       - "5433:5432"
-
-  mongodb:
-    image: mongo:6.0
-    container_name: auction-mongodb
-    ports:
-      - "27017:27017"
-
-  redis:
-    image: redis:7-alpine
-    container_name: auction-redis
-    ports:
-      - "6379:6379"
-
-  rabbitmq:
-    image: rabbitmq:3-management-alpine
-    container_name: auction-rabbitmq
-    ports:
-      - "5672:5672"   # Message port
-      - "15672:15672" # Management UI port
 
   discovery-server:
     build:
@@ -35,7 +20,7 @@ services:
       dockerfile: Dockerfile
     container_name: discovery-server
     environment:
-      EUREKA_HOSTNAME: discovery-server
+      EUREKA_HOSTNAME: ${EUREKA_HOSTNAME}
     ports:
       - "8761:8761"
 
@@ -45,17 +30,35 @@ services:
       dockerfile: Dockerfile
     container_name: user-service
     environment:
-      DB_URL: jdbc:postgresql://postgres:5432/user_db
-      DB_USERNAME: admin
-      DB_PASSWORD: password
-      EUREKA_SERVER_URL: http://discovery-server:8761/eureka/
-      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
-      JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
+      DB_URL: ${USER_DB_URL}
+      DB_USERNAME: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      EUREKA_SERVER_URL: ${EUREKA_SERVER_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION: ${JWT_EXPIRATION}
     depends_on:
       - postgres
       - discovery-server
     ports:
       - "8081:8081"
+
+  auction-service:
+    build:
+      context: ./auction-service
+      dockerfile: Dockerfile
+    container_name: auction-service
+    environment:
+      DB_URL: ${AUCTION_DB_URL}
+      DB_USERNAME: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      EUREKA_SERVER_URL: ${EUREKA_SERVER_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION: ${JWT_EXPIRATION}
+    depends_on:
+      - postgres
+      - discovery-server
+    ports:
+      - "8181:8181"
 
   api-gateway:
     build:
@@ -63,10 +66,14 @@ services:
       dockerfile: Dockerfile
     container_name: api-gateway
     environment:
-      EUREKA_SERVER_URL: http://discovery-server:8761/eureka/
-      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
+      EUREKA_SERVER_URL: ${EUREKA_SERVER_URL}
+      JWT_SECRET: ${JWT_SECRET}
     depends_on:
       - discovery-server
       - user-service
+      - auction-service
     ports:
       - "8080:8080"
+
+volumes:
+  postgres_data
