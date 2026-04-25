@@ -1,5 +1,6 @@
 server:
   port: 8080
+
 spring:
   application:
     name: api-gateway
@@ -8,11 +9,42 @@ spring:
       server:
         webmvc:
           routes:
+            # User Service
             - id: user-service
               uri: ${USER_SERVICE_URL:http://localhost:8081}
               predicates:
                 - Path=/api/users/**
 
+            # Auction Service
+            - id: auction-service
+              uri: ${AUCTION_SERVICE_URL:http://localhost:8082}
+              predicates:
+                - Path=/api/auctions/**
+
+            # Bid Service
+            - id: bid-service
+              uri: ${BID_SERVICE_URL:http://localhost:8083}
+              predicates:
+                - Path=/api/bids/**
+
+            # Payment Service
+            - id: payment-service
+              uri: ${PAYMENT_SERVICE_URL:http://localhost:8084}
+              predicates:
+                - Path=/api/payments/**
+
+            # Notification Service
+            - id: notification-service
+              uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8085}
+              predicates:
+                - Path=/api/notifications/**
+
 app:
   jwt:
     secret: ${JWT_SECRET}
+  gateway:
+    public-paths:
+      - /api/users/register
+      - /api/users/login
+      - /api/users/status
+      - /actuator/health
