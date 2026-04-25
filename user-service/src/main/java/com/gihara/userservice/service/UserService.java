@@ -9,6 +9,8 @@ import com.gihara.userservice.dto.LoginResponse;
 import com.gihara.userservice.dto.UserLoginRequest;
 import com.gihara.userservice.dto.UserRegistrationRequest;
 import com.gihara.userservice.entity.User;
+import com.gihara.userservice.enums.UserRole;
+import com.gihara.userservice.enums.UserStatus;
 import com.gihara.userservice.repository.UserRepository;
 import com.gihara.userservice.util.JwtProvider;
 
@@ -30,10 +32,11 @@ public class UserService {
         String encodedPassword = passwordEncoder.encode(request.password());
         
         User newUser = User.builder()
-                .name(request.name())
+                .username(request.name())
                 .email(request.email())
                 .password(encodedPassword)
-                .role(User.Role.USER)
+                .userRole(UserRole.USER)
+                .userStatus(UserStatus.ACTIVE)
                 .createdAt(LocalDateTime.now())
                 .build();
 
@@ -49,7 +52,7 @@ public class UserService {
             throw new RuntimeException("Invalid password!");
         }
 
-        String token = jwtProvider.generateToken(user.getEmail());
+        String token = jwtProvider.generateToken(user.getEmail(), user.getUserRole());
         
         return LoginResponse.builder()
                 .message("Login successful!")
