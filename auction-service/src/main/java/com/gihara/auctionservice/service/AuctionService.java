@@ -11,14 +11,13 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.stream.Collectors;
 
-@Service                  // marks this as a Spring-managed bean
-@RequiredArgsConstructor  // Lombok: constructor injection for final fields
+@Service
+@RequiredArgsConstructor
 public class AuctionService {
 
     private final AuctionRepository auctionRepository;
 
     public AuctionResponse createAuction(AuctionRequest request) {
-        // Map DTO → Entity
         Auction auction = Auction.builder()
                 .title(request.getTitle())
                 .description(request.getDescription())
@@ -28,8 +27,7 @@ public class AuctionService {
                 .status(AuctionStatus.OPENED)
                 .build();
 
-        Auction saved = auctionRepository.save(auction);  // INSERT into DB
-        return mapToResponse(saved);
+        return mapToResponse(auctionRepository.save(auction));
     }
 
     public AuctionResponse getAuctionById(Long id) {
@@ -45,16 +43,21 @@ public class AuctionService {
                 .collect(Collectors.toList());
     }
 
+    // used by bid-service later via HTTP to validate auction state
+    public List<AuctionResponse> getAuctionsByStatus(AuctionStatus status) {
+        return auctionRepository.findByStatus(status)
+                .stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
     public AuctionResponse updateStatus(Long id, AuctionStatus newStatus) {
         Auction auction = auctionRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Auction not found: " + id));
-
         auction.setStatus(newStatus);
         return mapToResponse(auctionRepository.save(auction));
     }
 
-    // Private helper: converts Entity → Response DTO
-    // This stays private — controllers never touch the entity
     private AuctionResponse mapToResponse(Auction auction) {
         return AuctionResponse.builder()
                 .id(auction.getId())
