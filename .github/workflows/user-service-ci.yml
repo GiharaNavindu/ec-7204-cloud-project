@@ -1,0 +1,122 @@
+name: User Service CI Quality and Security
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - user-service/**
+      - .github/workflows/user-service-ci.yml
+  pull_request:
+    paths:
+      - user-service/**
+      - .github/workflows/user-service-ci.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  unit-and-integration-tests:
+    name: Unit, Integration, and Static Analysis
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: user-service
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Make Maven wrapper executable
+        run: chmod +x mvnw
+
+      - name: Run tests and quality checks
+        run: ./mvnw -B clean verify
+
+      - name: Upload Surefire and Failsafe reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: user-service-test-reports
+          path: |
+            user-service/target/surefire-reports
+            user-service/target/failsafe-reports
+
+      - name: Upload static analysis reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: user-service-static-analysis
+          path: |
+            user-service/target/checkstyle-result.xml
+            user-service/target/site/checkstyle.html
+            user-service/target/spotbugsXml.xml
+
+  sast-codeql:
+    name: SAST - CodeQL
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: user-service
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: java-kotlin
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Build project for CodeQL
+        run: |
+          chmod +x mvnw
+          ./mvnw -B -DskipTests compile
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+
+  sca-dependency-check:
+    name: SCA - OWASP Dependency Check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: user-service
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Run OWASP Dependency Check
+        run: |
+          chmod +x mvnw
+          ./mvnw -B org.owasp:dependency-check-maven:9.2.0:check -Dformat=HTML -Dformat=JSON -DfailBuildOnCVSS=11
+
+      - name: Upload dependency check reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: user-service-sca-report
+          path: |
+            user-service/target/dependency-check-report.html
+            user-service/target/dependency-check-report.json
