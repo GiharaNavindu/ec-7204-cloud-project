@@ -1,0 +1,142 @@
+name: Deploy Microservices to Azure Container Apps
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: true
+
+env:
+  ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+  IMAGE_TAG: ${{ github.sha }}
+  AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+
+jobs:
+  tests:
+    name: Test ${{ matrix.service.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - name: api-gateway
+            path: api-gateway
+          - name: user-service
+            path: user-service
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Make Maven wrapper executable
+        run: chmod +x mvnw
+        working-directory: ${{ matrix.service.path }}
+
+      - name: Run tests and quality checks
+        run: ./mvnw -B clean verify
+        working-directory: ${{ matrix.service.path }}
+
+  build-and-push:
+    name: Build and push ${{ matrix.service.name }}
+    runs-on: ubuntu-latest
+    needs: tests
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - name: api-gateway
+            path: api-gateway
+            dockerfile: api-gateway/Dockerfile
+            image: api-gateway
+          - name: user-service
+            path: user-service
+            dockerfile: user-service/Dockerfile
+            image: user-service
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Azure Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.ACR_LOGIN_SERVER }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./${{ matrix.service.path }}
+          file: ./${{ matrix.service.dockerfile }}
+          push: true
+          provenance: false
+          sbom: false
+          tags: |
+            ${{ env.ACR_LOGIN_SERVER }}/${{ matrix.service.image }}:${{ env.IMAGE_TAG }}
+            ${{ env.ACR_LOGIN_SERVER }}/${{ matrix.service.image }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy-to-azure-container-apps:
+    name: Deploy ${{ matrix.service.name }} to Azure Container Apps
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - name: api-gateway
+            image: api-gateway
+          - name: user-service
+            image: user-service
+    steps:
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Update Container App image and registry
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            set -euo pipefail
+
+            case "${{ matrix.service.name }}" in
+              api-gateway)
+                APP_NAME="${{ vars.AZURE_API_GATEWAY_CONTAINER_APP_NAME }}"
+                ;;
+              user-service)
+                APP_NAME="${{ vars.AZURE_USER_SERVICE_CONTAINER_APP_NAME }}"
+                ;;
+              *)
+                echo "Unknown service: ${{ matrix.service.name }}"
+                exit 1
+                ;;
+            esac
+
+            az containerapp registry set \
+              --name "$APP_NAME" \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --server "${{ secrets.ACR_LOGIN_SERVER }}" \
+              --username "${{ secrets.ACR_USERNAME }}" \
+              --password "${{ secrets.ACR_PASSWORD }}"
+
+            az containerapp update \
+              --name "$APP_NAME" \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --image "${{ secrets.ACR_LOGIN_SERVER }}/${{ matrix.service.image }}:${{ github.sha }}"
