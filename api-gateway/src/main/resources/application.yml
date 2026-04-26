@@ -151,6 +151,7 @@ app:
       - /api/users/status
       - /actuator/health/**
       - /actuator/info
+      - /actuator/prometheus
       - /fallback/**
     role-rules:
       - pattern: /api/users/admin/**
@@ -175,6 +176,7 @@ app:
       exempt-paths:
         - /actuator/health/**
         - /actuator/info
+        - /actuator/prometheus
         - /fallback/**
     cors:
       allowed-origin-patterns:

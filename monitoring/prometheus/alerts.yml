@@ -1,0 +1,33 @@
+groups:
+  - name: api-gateway-alerts
+    interval: 30s
+    rules:
+      - alert: ApiGatewayHigh5xxRate
+        expr: sum(rate(http_server_requests_seconds_count{application="api-gateway",status=~"5.."}[5m])) > 0.5
+        for: 2m
+        labels:
+          severity: warning
+          service: api-gateway
+        annotations:
+          summary: "High 5xx error rate on API Gateway"
+          description: "API Gateway is producing more than 0.5 5xx responses/sec over 5m."
+
+      - alert: ApiGatewayRateLimitSpike
+        expr: sum(rate(http_server_requests_seconds_count{application="api-gateway",status="429"}[5m])) > 0.5
+        for: 1m
+        labels:
+          severity: warning
+          service: api-gateway
+        annotations:
+          summary: "High throttling rate on API Gateway"
+          description: "Gateway is returning many 429 responses. Check client load and limits."
+
+      - alert: ApiGatewayReadinessDown
+        expr: up{job="api-gateway"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: api-gateway
+        annotations:
+          summary: "API Gateway readiness probe failing"
+          description: "Prometheus cannot scrape the API Gateway metrics endpoint continuously."
