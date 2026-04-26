@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AuctionHub — Live Auctions</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+          --bg: #0a0a0f;
+          --surface: #13131a;
+          --surface2: #1a1a24;
+          --border: #1e1e2e;
+          --accent: #f97316;
+          --accent2: #fb923c;
+          --text: #f1f0ee;
+          --muted: #6b6b7b;
+          --success: #22c55e;
+          --error: #ef4444;
+          --warning: #eab308;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+          font-family: 'DM Sans', sans-serif;
+          background: var(--bg);
+          color: var(--text);
+          min-height: 100vh;
+        }
+
+        /* NAV */
+        nav {
+          background: var(--surface);
+          border-bottom: 1px solid var(--border);
+          padding: 1rem 2rem;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          position: sticky;
+          top: 0;
+          z-index: 100;
+        }
+
+        .logo {
+          font-family: 'Syne', sans-serif;
+          font-size: 1.3rem;
+          font-weight: 800;
+          letter-spacing: -0.02em;
+        }
+        .logo span { color: var(--accent); }
+
+        .nav-right {
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+        }
+
+        .user-badge {
+          background: var(--surface2);
+          border: 1px solid var(--border);
+          padding: 0.4rem 0.9rem;
+          border-radius: 100px;
+          font-size: 0.85rem;
+          color: var(--muted);
+        }
+
+        .btn-logout {
+          background: transparent;
+          border: 1px solid var(--border);
+          color: var(--muted);
+          padding: 0.4rem 0.9rem;
+          border-radius: 100px;
+          font-family: 'DM Sans', sans-serif;
+          font-size: 0.85rem;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        .btn-logout:hover { border-color: var(--error); color: var(--error); }
+
+        /* MAIN */
+        main {
+          max-width: 1100px;
+          margin: 0 auto;
+          padding: 2.5rem 2rem;
+        }
+
+        .page-header {
+          display: flex;
+          align-items: flex-end;
+          justify-content: space-between;
+          margin-bottom: 2rem;
+        }
+
+        .page-header h1 {
+          font-family: 'Syne', sans-serif;
+          font-size: 2rem;
+          font-weight: 800;
+          letter-spacing: -0.03em;
+        }
+
+        .live-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.4rem;
+          background: rgba(239,68,68,0.1);
+          border: 1px solid rgba(239,68,68,0.3);
+          color: var(--error);
+          font-size: 0.75rem;
+          font-weight: 600;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          padding: 0.3rem 0.7rem;
+          border-radius: 100px;
+          margin-left: 0.75rem;
+        }
+
+        .live-dot {
+          width: 6px; height: 6px;
+          background: var(--error);
+          border-radius: 50%;
+          animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.3; }
+        }
+
+        .filter-bar {
+          display: flex;
+          gap: 0.5rem;
+          margin-bottom: 1.5rem;
+          flex-wrap: wrap;
+        }
+
+        .filter-btn {
+          padding: 0.4rem 1rem;
+          border-radius: 100px;
+          border: 1px solid var(--border);
+          background: transparent;
+          color: var(--muted);
+          font-family: 'DM Sans', sans-serif;
+          font-size: 0.85rem;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        .filter-btn.active, .filter-btn:hover {
+          background: var(--accent);
+          border-color: var(--accent);
+          color: white;
+        }
+
+        /* GRID */
+        .auctions-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+          gap: 1.25rem;
+        }
+
+        .auction-card {
+          background: var(--surface);
+          border: 1px solid var(--border);
+          border-radius: 14px;
+          overflow: hidden;
+          transition: transform 0.2s, border-color 0.2s;
+          cursor: pointer;
+        }
+
+        .auction-card:hover {
+          transform: translateY(-3px);
+          border-color: rgba(249,115,22,0.4);
+        }
+
+        .card-image {
+          height: 140px;
+          background: linear-gradient(135deg, var(--surface2), var(--border));
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 3rem;
+          position: relative;
+        }
+
+        .card-status {
+          position: absolute;
+          top: 0.75rem;
+          right: 0.75rem;
+          padding: 0.25rem 0.6rem;
+          border-radius: 100px;
+          font-size: 0.7rem;
+          font-weight: 600;
+          letter-spacing: 0.06em;
+          text-transform: uppercase;
+        }
+
+        .status-open { background: rgba(34,197,94,0.2); color: var(--success); border: 1px solid rgba(34,197,94,0.3); }
+        .status-ended { background: rgba(107,107,123,0.2); color: var(--muted); border: 1px solid rgba(107,107,123,0.3); }
+        .status-pending { background: rgba(234,179,8,0.2); color: var(--warning); border: 1px solid rgba(234,179,8,0.3); }
+
+        .card-body { padding: 1.25rem; }
+
+        .card-title {
+          font-family: 'Syne', sans-serif;
+          font-size: 1rem;
+          font-weight: 700;
+          margin-bottom: 0.5rem;
+          line-height: 1.3;
+        }
+
+        .card-desc {
+          font-size: 0.82rem;
+          color: var(--muted);
+          line-height: 1.5;
+          margin-bottom: 1rem;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+
+        .card-footer {
+          display: flex;
+          align-items: flex-end;
+          justify-content: space-between;
+          padding-top: 1rem;
+          border-top: 1px solid var(--border);
+        }
+
+        .bid-info label {
+          font-size: 0.7rem;
+          text-transform: uppercase;
+          letter-spacing: 0.06em;
+          color: var(--muted);
+          display: block;
+          margin-bottom: 0.2rem;
+        }
+
+        .bid-amount {
+          font-family: 'Syne', sans-serif;
+          font-size: 1.3rem;
+          font-weight: 700;
+          color: var(--accent);
+        }
+
+        .time-info {
+          text-align: right;
+        }
+
+        .time-info label {
+          font-size: 0.7rem;
+          text-transform: uppercase;
+          letter-spacing: 0.06em;
+          color: var(--muted);
+          display: block;
+          margin-bottom: 0.2rem;
+        }
+
+        .time-remaining {
+          font-size: 0.85rem;
+          font-weight: 500;
+          color: var(--text);
+        }
+
+        .bid-btn {
+          display: block;
+          width: calc(100% - 2.5rem);
+          margin: 0 1.25rem 1.25rem;
+          padding: 0.7rem;
+          background: var(--accent);
+          color: white;
+          border: none;
+          border-radius: 8px;
+          font-family: 'Syne', sans-serif;
+          font-size: 0.9rem;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.2s;
+          text-align: center;
+        }
+
+        .bid-btn:hover { background: var(--accent2); }
+        .bid-btn:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+
+        /* States */
+        .loading-state, .empty-state, .error-state {
+          grid-column: 1 / -1;
+          text-align: center;
+          padding: 4rem 2rem;
+          color: var(--muted);
+        }
+
+        .loading-state .spinner {
+          width: 36px; height: 36px;
+          border: 3px solid var(--border);
+          border-top-color: var(--accent);
+          border-radius: 50%;
+          animation: spin 0.8s linear infinite;
+          margin: 0 auto 1rem;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .empty-icon { font-size: 3rem; margin-bottom: 1rem; }
+        .empty-state p, .error-state p { font-size: 0.9rem; margin-top: 0.5rem; }
+
+        .retry-btn {
+          margin-top: 1rem;
+          padding: 0.5rem 1.5rem;
+          background: var(--accent);
+          color: white;
+          border: none;
+          border-radius: 8px;
+          font-family: 'DM Sans', sans-serif;
+          cursor: pointer;
+        }
+
+        /* Toast */
+        .toast {
+          position: fixed;
+          bottom: 2rem;
+          right: 2rem;
+          background: var(--surface);
+          border: 1px solid var(--border);
+          padding: 1rem 1.5rem;
+          border-radius: 10px;
+          font-size: 0.9rem;
+          transform: translateY(100px);
+          opacity: 0;
+          transition: all 0.3s;
+          z-index: 999;
+        }
+        .toast.show { transform: translateY(0); opacity: 1; }
+        .toast.error { border-color: rgba(239,68,68,0.5); color: var(--error); }
+        .toast.info { border-color: rgba(249,115,22,0.5); color: var(--accent); }
+    </style>
+</head>
+<body>
+
+<nav>
+    <div class="logo">Auction<span>Hub</span></div>
+    <div class="nav-right">
+        <div class="user-badge" id="user-badge">Loading...</div>
+        <button class="btn-logout" onclick="logout()">Sign out</button>
+    </div>
+</nav>
+
+<main>
+    <div class="page-header">
+        <div>
+            <h1>
+                Live Auctions
+                <span class="live-badge"><span class="live-dot"></span>Live</span>
+            </h1>
+        </div>
+        <div id="auction-count" style="color: var(--muted); font-size: 0.9rem;"></div>
+    </div>
+
+    <div class="filter-bar">
+        <button class="filter-btn active" onclick="filterAuctions('all', this)">All</button>
+        <button class="filter-btn" onclick="filterAuctions('OPEN', this)">Open</button>
+        <button class="filter-btn" onclick="filterAuctions('PENDING', this)">Upcoming</button>
+        <button class="filter-btn" onclick="filterAuctions('ENDED', this)">Ended</button>
+    </div>
+
+    <div class="auctions-grid" id="auctions-grid">
+        <div class="loading-state">
+            <div class="spinner"></div>
+            <p>Loading auctions...</p>
+        </div>
+    </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+    // Auth guard
+    const token = localStorage.getItem('token');
+    const email = localStorage.getItem('email');
+    if (!token) window.location.href = '/index.html';
+
+    document.getElementById('user-badge').textContent = email || 'User';
+
+    let allAuctions = [];
+    let currentFilter = 'all';
+
+    const EMOJI_MAP = {
+      art: '🎨', electronics: '💻', jewelry: '💎', car: '🚗',
+      watch: '⌚', book: '📚', antique: '🏺', default: '🔨'
+    };
+
+    function getEmoji(title = '') {
+      const t = title.toLowerCase();
+      for (const [key, emoji] of Object.entries(EMOJI_MAP)) {
+        if (t.includes(key)) return emoji;
+      }
+      return EMOJI_MAP.default;
+    }
+
+    function formatTimeRemaining(endTime) {
+      if (!endTime) return 'N/A';
+      const diff = new Date(endTime) - new Date();
+      if (diff <= 0) return 'Ended';
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      if (h > 24) return `${Math.floor(h/24)}d ${h%24}h`;
+      if (h > 0) return `${h}h ${m}m`;
+      return `${m}m`;
+    }
+
+    function getStatusClass(status) {
+      const map = { 'OPEN': 'status-open', 'ENDED': 'status-ended', 'PENDING': 'status-pending' };
+      return map[status] || 'status-pending';
+    }
+
+    function renderAuctions(auctions) {
+      const grid = document.getElementById('auctions-grid');
+
+      if (auctions.length === 0) {
+        grid.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon">🔍</div>
+            <h3>No auctions found</h3>
+            <p>Try a different filter or check back soon.</p>
+          </div>`;
+        return;
+      }
+
+      grid.innerHTML = auctions.map(a => `
+        <div class="auction-card" onclick="goToBid('${a.id || a.auctionId}')">
+          <div class="card-image">
+            ${getEmoji(a.title || a.itemName)}
+            <span class="card-status ${getStatusClass(a.status)}">${a.status || 'OPEN'}</span>
+          </div>
+          <div class="card-body">
+            <div class="card-title">${a.title || a.itemName || 'Unnamed Auction'}</div>
+            <div class="card-desc">${a.description || 'No description available.'}</div>
+            <div class="card-footer">
+              <div class="bid-info">
+                <label>Current Bid</label>
+                <div class="bid-amount">$${(a.currentBid || a.startingBid || a.startPrice || 0).toLocaleString()}</div>
+              </div>
+              <div class="time-info">
+                <label>Time Left</label>
+                <div class="time-remaining">${formatTimeRemaining(a.endTime || a.endDate)}</div>
+              </div>
+            </div>
+          </div>
+          <button class="bid-btn" onclick="event.stopPropagation(); goToBid('${a.id || a.auctionId}')"
+            ${a.status === 'ENDED' ? 'disabled' : ''}>
+            ${a.status === 'ENDED' ? 'Auction Ended' : 'Place Bid →'}
+          </button>
+        </div>
+      `).join('');
+    }
+
+    function filterAuctions(status, btn) {
+      currentFilter = status;
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const filtered = status === 'all' ? allAuctions : allAuctions.filter(a => a.status === status);
+      renderAuctions(filtered);
+    }
+
+    function goToBid(id) {
+      window.location.href = `/bid.html?id=${id}`;
+    }
+
+    async function loadAuctions() {
+      const grid = document.getElementById('auctions-grid');
+      try {
+        const res = await fetch('/api/auctions', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (res.status === 401) { logout(); return; }
+
+        if (!res.ok) {
+          // Service might be unavailable — show demo data
+          showDemoAuctions();
+          return;
+        }
+
+        const data = await res.json();
+        // Handle both array and paginated response
+        allAuctions = Array.isArray(data) ? data : (data.content || data.auctions || data.data || []);
+        document.getElementById('auction-count').textContent = `${allAuctions.length} auction${allAuctions.length !== 1 ? 's' : ''}`;
+        renderAuctions(allAuctions);
+
+      } catch (e) {
+        showDemoAuctions();
+      }
+    }
+
+    function showDemoAuctions() {
+      // Show placeholder cards while auction-service is being built
+      allAuctions = [
+        { id: 'demo-1', title: 'Vintage Rolex Watch', description: 'A rare 1965 Rolex Submariner in excellent condition.', currentBid: 4500, status: 'OPEN', endTime: new Date(Date.now() + 3600000 * 5).toISOString() },
+        { id: 'demo-2', title: 'Original Abstract Painting', description: 'Oil on canvas by emerging artist, signed and dated.', currentBid: 1200, status: 'OPEN', endTime: new Date(Date.now() + 3600000 * 12).toISOString() },
+        { id: 'demo-3', title: 'Gaming Laptop RTX 4090', description: 'Brand new sealed, latest generation gaming powerhouse.', currentBid: 2800, status: 'PENDING', endTime: new Date(Date.now() + 3600000 * 24).toISOString() },
+      ];
+      document.getElementById('auction-count').textContent = `${allAuctions.length} demo auctions (auction-service offline)`;
+      renderAuctions(allAuctions);
+      showToast('Auction service offline — showing demo data', 'error');
+    }
+
+    function showToast(msg, type = 'info') {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.className = `toast show ${type}`;
+      setTimeout(() => t.className = 'toast', 3500);
+    }
+
+    function logout() {
+      localStorage.clear();
+      window.location.href = '/index.html';
+    }
+
+    loadAuctions();
+    // Auto-refresh every 30s
+    setInterval(loadAuctions, 30000);
+</script>
+</body>
+</html>

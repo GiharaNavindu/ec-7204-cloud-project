@@ -6,6 +6,9 @@ server:
     max-swallow-size: 2MB
 
 spring:
+  web:
+    resources:
+      static-locations: classpath:/static/
   servlet:
     multipart:
       max-file-size: 2MB
@@ -149,10 +152,18 @@ app:
       - /api/users/register
       - /api/users/login
       - /api/users/status
-      - /actuator/health/**
+      - /actuator/health
       - /actuator/info
       - /actuator/prometheus
       - /fallback/**
+      - /
+      - /index.html
+      - /auctions.html
+      - /bid.html
+      - /js/**
+      - /css/**
+
+
     role-rules:
       - pattern: /api/users/admin/**
         roles: [ADMIN]
@@ -178,6 +189,10 @@ app:
         - /actuator/info
         - /actuator/prometheus
         - /fallback/**
+        - /
+        - /*.html
+        - /js/**
+        - /css/**
     cors:
       allowed-origin-patterns:
         - ${ALLOWED_ORIGIN_PATTERN:http://localhost:*}
