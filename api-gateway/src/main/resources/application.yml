@@ -43,3 +43,18 @@ app:
       - /api/users/login
       - /api/users/status
       - /actuator/health
+
+
+    role-rules:
+      - pattern: /api/users/admin/**
+        roles: [ADMIN]
+      - pattern: /api/users/trusted/**
+        roles: [TRUSTED_USER, ADMIN]
+      - pattern: /api/auctions/create/**
+        roles: [TRUSTED_USER, ADMIN]
+      - pattern: /api/auctions/manage/**
+        roles: [ADMIN]
+      - pattern: /api/payments/refund/**
+        roles: [ADMIN]
+      - pattern: /api/notifications/admin/**
+        roles: [ADMIN]
