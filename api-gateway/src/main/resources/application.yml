@@ -153,6 +153,14 @@ app:
         roles: [ADMIN]
       - pattern: /api/notifications/admin/**
         roles: [ADMIN]
+    rate-limit:
+      enabled: true
+      max-requests: 60
+      window-seconds: 60
+      exempt-paths:
+        - /actuator/health/**
+        - /actuator/info
+        - /fallback/**
 
 resilience4j:
   circuitbreaker:
@@ -200,6 +208,9 @@ management:
     web:
       exposure:
         include: health,info,metrics,prometheus
+  info:
+    env:
+      enabled: true
   endpoint:
     health:
       probes:

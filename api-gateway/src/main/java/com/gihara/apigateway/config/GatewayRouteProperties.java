@@ -10,6 +10,7 @@ public class GatewayRouteProperties {
 
     private List<String> publicPaths = new ArrayList<>();
     private List<RoleRule> roleRules = new ArrayList<>();
+    private RateLimit rateLimit = new RateLimit();
 
     public List<String> getPublicPaths() {
         return publicPaths;
@@ -25,6 +26,14 @@ public class GatewayRouteProperties {
 
     public void setRoleRules(List<RoleRule> roleRules) {
         this.roleRules = roleRules;
+    }
+
+    public RateLimit getRateLimit() {
+        return rateLimit;
+    }
+
+    public void setRateLimit(RateLimit rateLimit) {
+        this.rateLimit = rateLimit;
     }
 
     public static class RoleRule {
@@ -45,6 +54,49 @@ public class GatewayRouteProperties {
 
         public void setRoles(List<String> roles) {
             this.roles = roles;
+        }
+    }
+
+    public static class RateLimit {
+        private boolean enabled = true;
+        private int maxRequests = 60;
+        private long windowSeconds = 60;
+        private List<String> exemptPaths = new ArrayList<>(List.of(
+            "/actuator/health/**",
+            "/actuator/info",
+            "/fallback/**"
+        ));
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public int getMaxRequests() {
+            return maxRequests;
+        }
+
+        public void setMaxRequests(int maxRequests) {
+            this.maxRequests = maxRequests;
+        }
+
+        public long getWindowSeconds() {
+            return windowSeconds;
+        }
+
+        public void setWindowSeconds(long windowSeconds) {
+            this.windowSeconds = windowSeconds;
+        }
+
+        public List<String> getExemptPaths() {
+            return exemptPaths;
+        }
+
+        public void setExemptPaths(List<String> exemptPaths) {
+            this.exemptPaths = exemptPaths;
         }
     }
 }
