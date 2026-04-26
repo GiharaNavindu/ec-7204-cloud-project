@@ -137,7 +137,8 @@ app:
       - /api/users/register
       - /api/users/login
       - /api/users/status
-      - /actuator/health
+      - /actuator/health/**
+      - /actuator/info
       - /fallback/**
     role-rules:
       - pattern: /api/users/admin/**
@@ -193,3 +194,30 @@ resilience4j:
         baseConfig: default
       notificationServiceCircuitBreaker:
         baseConfig: default
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} requestId=%X{requestId} - %msg%n"
+info:
+  app:
+    name: ${spring.application.name}
+    description: Cloud Auction API Gateway
+    version: 0.0.1-SNAPSHOT
