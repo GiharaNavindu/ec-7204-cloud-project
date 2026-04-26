@@ -13,26 +13,121 @@ spring:
               uri: ${USER_SERVICE_URL:http://localhost:8081}
               predicates:
                 - Path=/api/users/register,/api/users/login,/api/users/status
+              filters:
+                - name: Retry
+                  args:
+                    retries: 2
+                    methods: GET,POST
+                    series: SERVER_ERROR
+                - name: CircuitBreaker
+                  args:
+                    id: userServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/users
+                    statusCodes:
+                      - 500
+                      - 502
+                      - 503
+                      - 504
+
             - id: user-service-protected
               uri: ${USER_SERVICE_URL:http://localhost:8081}
               predicates:
                 - Path=/api/users/**
+              filters:
+                - name: Retry
+                  args:
+                    retries: 2
+                    methods: GET
+                    series: SERVER_ERROR
+                - name: CircuitBreaker
+                  args:
+                    id: userServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/users
+                    statusCodes:
+                      - 500
+                      - 502
+                      - 503
+                      - 504
+
             - id: auction-service
               uri: ${AUCTION_SERVICE_URL:http://localhost:8082}
               predicates:
                 - Path=/api/auctions/**
+              filters:
+                - name: Retry
+                  args:
+                    retries: 2
+                    methods: GET
+                    series: SERVER_ERROR
+                - name: CircuitBreaker
+                  args:
+                    id: auctionServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/auctions
+                    statusCodes:
+                      - 500
+                      - 502
+                      - 503
+                      - 504
+
             - id: bid-service
               uri: ${BID_SERVICE_URL:http://localhost:8083}
               predicates:
                 - Path=/api/bids/**
+              filters:
+                - name: Retry
+                  args:
+                    retries: 1
+                    methods: GET
+                    series: SERVER_ERROR
+                - name: CircuitBreaker
+                  args:
+                    id: bidServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/bids
+                    statusCodes:
+                      - 500
+                      - 502
+                      - 503
+                      - 504
+
             - id: payment-service
               uri: ${PAYMENT_SERVICE_URL:http://localhost:8084}
               predicates:
                 - Path=/api/payments/**
+              filters:
+                - name: Retry
+                  args:
+                    retries: 1
+                    methods: GET
+                    series: SERVER_ERROR
+                - name: CircuitBreaker
+                  args:
+                    id: paymentServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/payments
+                    statusCodes:
+                      - 500
+                      - 502
+                      - 503
+                      - 504
+
             - id: notification-service
               uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8085}
               predicates:
                 - Path=/api/notifications/**
+              filters:
+                - name: Retry
+                  args:
+                    retries: 2
+                    methods: GET
+                    series: SERVER_ERROR
+                - name: CircuitBreaker
+                  args:
+                    id: notificationServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/notifications
+                    statusCodes:
+                      - 500
+                      - 502
+                      - 503
+                      - 504
 
 app:
   jwt:
@@ -43,8 +138,7 @@ app:
       - /api/users/login
       - /api/users/status
       - /actuator/health
-
-
+      - /fallback/**
     role-rules:
       - pattern: /api/users/admin/**
         roles: [ADMIN]
@@ -58,3 +152,44 @@ app:
         roles: [ADMIN]
       - pattern: /api/notifications/admin/**
         roles: [ADMIN]
+
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 20
+        minimumNumberOfCalls: 10
+        permittedNumberOfCallsInHalfOpenState: 5
+        failureRateThreshold: 50
+        slowCallDurationThreshold: 2s
+        slowCallRateThreshold: 50
+        waitDurationInOpenState: 30s
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+    instances:
+      userServiceCircuitBreaker:
+        baseConfig: default
+      auctionServiceCircuitBreaker:
+        baseConfig: default
+      bidServiceCircuitBreaker:
+        baseConfig: default
+      paymentServiceCircuitBreaker:
+        baseConfig: default
+      notificationServiceCircuitBreaker:
+        baseConfig: default
+
+  timelimiter:
+    configs:
+      default:
+        timeoutDuration: 3s
+    instances:
+      userServiceCircuitBreaker:
+        baseConfig: default
+      auctionServiceCircuitBreaker:
+        baseConfig: default
+      bidServiceCircuitBreaker:
+        baseConfig: default
+      paymentServiceCircuitBreaker:
+        baseConfig: default
+      notificationServiceCircuitBreaker:
+        baseConfig: default
