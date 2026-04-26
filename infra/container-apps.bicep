@@ -24,8 +24,12 @@ param infrastructureSubnetPrefix string = '10.42.0.0/23'
 @description('Azure Container Registry login server, for example myregistry.azurecr.io.')
 param acrLoginServer string
 
-@description('Resource ID of the Azure Container Registry used for AcrPull role assignment.')
-param acrResourceId string
+@description('Azure Container Registry username.')
+param acrUsername string
+
+@secure()
+@description('Azure Container Registry password.')
+param acrPassword string
 
 @description('Image tag to deploy for api-gateway and user-service.')
 param imageTag string = 'latest'
@@ -74,7 +78,6 @@ param dbPassword string
 var apiGatewayImage = '${acrLoginServer}/api-gateway:${imageTag}'
 var userServiceImage = '${acrLoginServer}/user-service:${imageTag}'
 var discoveryImage = empty(discoveryServerImage) ? '' : discoveryServerImage
-var acrPullRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'acdd72a7-3385-48ef-bd42-f606fba81ae7')
 
 resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
   name: logAnalyticsWorkspaceName
@@ -123,11 +126,15 @@ resource containerAppsEnv 'Microsoft.App/managedEnvironments@2024-03-01' = {
       destination: 'log-analytics'
       logAnalyticsConfiguration: {
         customerId: logAnalytics.properties.customerId
-        sharedKey: listKeys(logAnalytics.id, logAnalytics.apiVersion).primarySharedKey
+        sharedKey: logAnalytics.listKeys().primarySharedKey
       }
     }
     vnetConfiguration: {
-      infrastructureSubnetId: resourceId('Microsoft.Network/virtualNetworks/subnets', vnet.name, infrastructureSubnetName)
+      infrastructureSubnetId: resourceId(
+        'Microsoft.Network/virtualNetworks/subnets',
+        vnet.name,
+        infrastructureSubnetName
+      )
     }
   }
 }
@@ -144,10 +151,15 @@ resource apiGatewayApp 'Microsoft.App/containerApps@2024-03-01' = {
       registries: [
         {
           server: acrLoginServer
-          identity: 'system'
+          username: acrUsername
+          passwordSecretRef: 'acr-password'
         }
       ]
       secrets: [
+        {
+          name: 'acr-password'
+          value: acrPassword
+        }
         {
           name: 'jwt-secret'
           value: jwtSecret
@@ -201,10 +213,15 @@ resource userServiceApp 'Microsoft.App/containerApps@2024-03-01' = {
       registries: [
         {
           server: acrLoginServer
-          identity: 'system'
+          username: acrUsername
+          passwordSecretRef: 'acr-password'
         }
       ]
       secrets: [
+        {
+          name: 'acr-password'
+          value: acrPassword
+        }
         {
           name: 'db-password'
           value: dbPassword
@@ -262,26 +279,6 @@ resource userServiceApp 'Microsoft.App/containerApps@2024-03-01' = {
   }
 }
 
-resource apiGatewayAcrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(acrResourceId, apiGatewayApp.id, acrPullRoleDefinitionId)
-  scope: acrResourceId
-  properties: {
-    roleDefinitionId: acrPullRoleDefinitionId
-    principalId: apiGatewayApp.identity.principalId
-    principalType: 'ServicePrincipal'
-  }
-}
-
-resource userServiceAcrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(acrResourceId, userServiceApp.id, acrPullRoleDefinitionId)
-  scope: acrResourceId
-  properties: {
-    roleDefinitionId: acrPullRoleDefinitionId
-    principalId: userServiceApp.identity.principalId
-    principalType: 'ServicePrincipal'
-  }
-}
-
 resource discoveryServerApp 'Microsoft.App/containerApps@2024-03-01' = if (deployDiscoveryServer && !empty(discoveryImage)) {
   name: discoveryServerAppName
   location: location
@@ -294,7 +291,14 @@ resource discoveryServerApp 'Microsoft.App/containerApps@2024-03-01' = if (deplo
       registries: [
         {
           server: acrLoginServer
-          identity: 'system'
+          username: acrUsername
+          passwordSecretRef: 'acr-password'
+        }
+      ]
+      secrets: [
+        {
+          name: 'acr-password'
+          value: acrPassword
         }
       ]
       ingress: {
@@ -323,17 +327,9 @@ resource discoveryServerApp 'Microsoft.App/containerApps@2024-03-01' = if (deplo
   }
 }
 
-resource discoveryServerAcrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (deployDiscoveryServer && !empty(discoveryImage)) {
-  name: guid(acrResourceId, discoveryServerApp.id, acrPullRoleDefinitionId)
-  scope: acrResourceId
-  properties: {
-    roleDefinitionId: acrPullRoleDefinitionId
-    principalId: discoveryServerApp.identity.principalId
-    principalType: 'ServicePrincipal'
-  }
-}
-
 output containerAppsEnvironmentId string = containerAppsEnv.id
 output apiGatewayPublicUrl string = 'https://${apiGatewayApp.properties.configuration.ingress.fqdn}'
 output userServiceInternalFqdn string = userServiceApp.properties.configuration.ingress.fqdn
-output discoveryServerInternalFqdn string = deployDiscoveryServer && !empty(discoveryImage) ? discoveryServerApp.properties.configuration.ingress.fqdn : ''
+output discoveryServerInternalFqdn string = deployDiscoveryServer && !empty(discoveryImage)
+  ? '${discoveryServerAppName} (internal ingress enabled)'
+  : ''
