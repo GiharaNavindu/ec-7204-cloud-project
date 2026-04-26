@@ -8,8 +8,10 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.RedisConnectionFailureException;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
-import org.springframework.util.AntPathMatcher;
 import org.springframework.web.cors.CorsUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -19,6 +21,7 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -29,11 +32,17 @@ public class GatewayRateLimitFilter extends OncePerRequestFilter {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final GatewayRouteProperties routeProperties;
-    private final AntPathMatcher pathMatcher = new AntPathMatcher();
     private final ConcurrentMap<String, ClientWindow> clientWindows = new ConcurrentHashMap<>();
+    private final StringRedisTemplate redisTemplate;
 
     public GatewayRateLimitFilter(GatewayRouteProperties routeProperties) {
+        this(routeProperties, null);
+    }
+
+    @Autowired
+    public GatewayRateLimitFilter(GatewayRouteProperties routeProperties, StringRedisTemplate redisTemplate) {
         this.routeProperties = routeProperties;
+        this.redisTemplate = redisTemplate;
     }
 
     @Override
@@ -48,8 +57,7 @@ public class GatewayRateLimitFilter extends OncePerRequestFilter {
         }
 
         String path = request.getRequestURI();
-        return rateLimit.getExemptPaths().stream()
-                .anyMatch(pattern -> pathMatcher.match(pattern, path));
+        return routeProperties.isRateLimitExemptPath(path);
     }
 
     @Override
@@ -62,15 +70,14 @@ public class GatewayRateLimitFilter extends OncePerRequestFilter {
         String clientKey = resolveClientKey(request);
         long windowMillis = rateLimit.getWindowSeconds() * 1000L;
 
-        ClientWindow window = clientWindows.computeIfAbsent(clientKey, key -> new ClientWindow());
-        RateLimitSnapshot snapshot;
-        synchronized (window) {
-            snapshot = window.tryAcquire(now, windowMillis, rateLimit.getMaxRequests());
-        }
+        RateLimitSnapshot snapshot = acquireToken(rateLimit, clientKey, now, windowMillis);
 
         if (!snapshot.allowed) {
             response.setStatus(429);
             response.setContentType("application/json");
+            response.setHeader("X-Rate-Limit-Limit", String.valueOf(rateLimit.getMaxRequests()));
+            response.setHeader("X-Rate-Limit-Remaining", "0");
+            response.setHeader("X-Rate-Limit-Reset", String.valueOf(snapshot.resetSeconds));
             response.setHeader("Retry-After", String.valueOf(snapshot.retryAfterSeconds));
 
             Map<String, Object> body = new LinkedHashMap<>();
@@ -92,7 +99,65 @@ public class GatewayRateLimitFilter extends OncePerRequestFilter {
         try {
             filterChain.doFilter(request, response);
         } finally {
-            cleanupIfIdle(clientKey, window, now, windowMillis);
+            cleanupIfIdle(clientKey, now, windowMillis);
+        }
+    }
+
+    private RateLimitSnapshot acquireToken(GatewayRouteProperties.RateLimit rateLimit,
+                                           String clientKey,
+                                           long now,
+                                           long windowMillis) {
+        String mode = rateLimit.getMode() == null ? "memory" : rateLimit.getMode().trim().toLowerCase();
+
+        if ("redis".equals(mode)) {
+            try {
+                return acquireFromRedis(rateLimit, clientKey, windowMillis);
+            } catch (RedisConnectionFailureException | IllegalStateException ex) {
+                if (!rateLimit.isFailOpen()) {
+                    return RateLimitSnapshot.blocked(rateLimit.getMaxRequests(), windowMillis, windowMillis);
+                }
+                return acquireFromMemory(rateLimit, clientKey, now, windowMillis);
+            }
+        }
+
+        return acquireFromMemory(rateLimit, clientKey, now, windowMillis);
+    }
+
+    private RateLimitSnapshot acquireFromRedis(GatewayRouteProperties.RateLimit rateLimit,
+                                               String clientKey,
+                                               long windowMillis) {
+        if (redisTemplate == null) {
+            throw new IllegalStateException("Redis mode enabled but StringRedisTemplate is not configured");
+        }
+
+        String key = rateLimit.getRedisKeyPrefix() + clientKey;
+        Long current = redisTemplate.opsForValue().increment(key);
+        if (current == null) {
+            throw new IllegalStateException("Unable to increment Redis rate limit key");
+        }
+
+        if (current == 1L) {
+            redisTemplate.expire(key, windowMillis, TimeUnit.MILLISECONDS);
+        }
+
+        Long ttlSeconds = redisTemplate.getExpire(key, TimeUnit.SECONDS);
+        long resetSeconds = ttlSeconds == null || ttlSeconds < 1 ? 1 : ttlSeconds;
+
+        if (current > rateLimit.getMaxRequests()) {
+            return RateLimitSnapshot.blocked((int) current.longValue(), resetSeconds * 1000L, windowMillis);
+        }
+
+        int remaining = Math.max(0, rateLimit.getMaxRequests() - current.intValue());
+        return RateLimitSnapshot.allowed(remaining, resetSeconds * 1000L);
+    }
+
+    private RateLimitSnapshot acquireFromMemory(GatewayRouteProperties.RateLimit rateLimit,
+                                                String clientKey,
+                                                long now,
+                                                long windowMillis) {
+        ClientWindow window = clientWindows.computeIfAbsent(clientKey, key -> new ClientWindow());
+        synchronized (window) {
+            return window.tryAcquire(now, windowMillis, rateLimit.getMaxRequests());
         }
     }
 
@@ -110,11 +175,14 @@ public class GatewayRateLimitFilter extends OncePerRequestFilter {
         return request.getRemoteAddr();
     }
 
-    private void cleanupIfIdle(String clientKey, ClientWindow window, long now, long windowMillis) {
-        synchronized (window) {
-            window.evictExpired(now, windowMillis);
-            if (window.isEmpty()) {
-                clientWindows.remove(clientKey, window);
+    private void cleanupIfIdle(String clientKey, long now, long windowMillis) {
+        ClientWindow window = clientWindows.get(clientKey);
+        if (window != null) {
+            synchronized (window) {
+                window.evictExpired(now, windowMillis);
+                if (window.isEmpty()) {
+                    clientWindows.remove(clientKey, window);
+                }
             }
         }
     }
@@ -169,7 +237,7 @@ public class GatewayRateLimitFilter extends OncePerRequestFilter {
 
         static RateLimitSnapshot blocked(int currentCount, long retryAfterMillis, long windowMillis) {
             long retryAfterSeconds = Math.max(1L, retryAfterMillis / 1000L);
-            return new RateLimitSnapshot(false, currentCount, Math.max(1L, windowMillis / 1000L), retryAfterSeconds);
+            return new RateLimitSnapshot(false, 0, Math.max(1L, windowMillis / 1000L), retryAfterSeconds);
         }
     }
 }

@@ -1,9 +1,21 @@
 server:
   port: 8080
+  max-http-request-header-size: 16KB
+  tomcat:
+    max-http-form-post-size: 2MB
+    max-swallow-size: 2MB
 
 spring:
+  servlet:
+    multipart:
+      max-file-size: 2MB
+      max-request-size: 2MB
   application:
     name: api-gateway
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
   cloud:
     gateway:
       server:
@@ -155,12 +167,38 @@ app:
         roles: [ADMIN]
     rate-limit:
       enabled: true
+      mode: redis
       max-requests: 60
       window-seconds: 60
+      redis-key-prefix: "gateway:ratelimit:"
+      fail-open: true
       exempt-paths:
         - /actuator/health/**
         - /actuator/info
         - /fallback/**
+    cors:
+      allowed-origin-patterns:
+        - ${ALLOWED_ORIGIN_PATTERN:http://localhost:*}
+      allowed-methods:
+        - GET
+        - POST
+        - PUT
+        - PATCH
+        - DELETE
+        - OPTIONS
+      allowed-headers:
+        - Authorization
+        - Content-Type
+        - X-Request-Id
+        - X-Forwarded-For
+      exposed-headers:
+        - X-Request-Id
+        - X-Rate-Limit-Limit
+        - X-Rate-Limit-Remaining
+        - X-Rate-Limit-Reset
+        - Retry-After
+      allow-credentials: true
+      max-age-seconds: 1800
 
 resilience4j:
   circuitbreaker:
@@ -224,6 +262,7 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
+      service: gateway
 logging:
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} requestId=%X{requestId} - %msg%n"

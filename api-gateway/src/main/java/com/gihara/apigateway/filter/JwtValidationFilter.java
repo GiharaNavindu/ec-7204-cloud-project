@@ -45,9 +45,7 @@ public class JwtValidationFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = request.getRequestURI();
-        return routeProperties.getPublicPaths().stream()
-                .anyMatch(pattern -> pathMatcher.match(pattern, path));
+        return routeProperties.isPublicPath(request.getRequestURI());
     }
 
     @Override

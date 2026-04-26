@@ -57,8 +57,12 @@ services:
       PAYMENT_SERVICE_URL: ${PAYMENT_SERVICE_URL:-http://payment-service:8084}
       NOTIFICATION_SERVICE_URL: ${NOTIFICATION_SERVICE_URL:-http://notification-service:8085}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      ALLOWED_ORIGIN_PATTERN: ${ALLOWED_ORIGIN_PATTERN:-http://localhost:*}
     depends_on:
       - user-service
+      - redis
     ports:
       - "8080:8080"
 
