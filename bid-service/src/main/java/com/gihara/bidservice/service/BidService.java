@@ -25,14 +25,17 @@ import java.util.stream.Collectors;
 public class BidService {
 
     private final BidRepository bidRepository;
-    private final RestTemplate restTemplate;       // calls auction-service
-    private final RabbitTemplate rabbitTemplate;   // publishes events
+    private final RestTemplate restTemplate; // calls auction-service
+    private final RabbitTemplate rabbitTemplate; // publishes events
 
     @Value("${rabbitmq.exchange}")
     private String exchange;
 
     @Value("${rabbitmq.routing-key}")
     private String routingKey;
+
+    @Value("${auction-service.url}")
+    private String auctionServiceUrl;
 
     public BidResponse placeBid(BidRequest request, String userEmail, Long userId) {
 
@@ -50,8 +53,7 @@ public class BidService {
             BigDecimal highestAmount = currentHighest.get().getAmount();
             if (request.getAmount().compareTo(highestAmount) <= 0) {
                 throw new RuntimeException(
-                    "Bid amount must be higher than current highest bid of " + highestAmount
-                );
+                        "Bid amount must be higher than current highest bid of " + highestAmount);
             }
         }
 
@@ -102,11 +104,10 @@ public class BidService {
     private AuctionResponse getAuction(Long auctionId) {
         try {
             return restTemplate.getForObject(
-                "http://AUCTION-SERVICE/api/auctions/" + auctionId,  // Eureka resolves this
-                AuctionResponse.class
-            );
+                    auctionServiceUrl + "/api/auctions/" + auctionId,
+                    AuctionResponse.class);
         } catch (Exception e) {
-            throw new RuntimeException("Could not reach auction-service. Is it running?");
+            throw new RuntimeException("Could not reach auction-service: " + e.getMessage());
         }
     }
 
