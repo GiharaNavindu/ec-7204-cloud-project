@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import com.gihara.userservice.enums.UserRole;
+
 class JwtProviderTest {
 
     private JwtProvider createValidProvider() {
@@ -32,10 +34,11 @@ class JwtProviderTest {
     @Test
     void generateAndValidateToken_shouldWorkForValidToken() {
         JwtProvider jwtProvider = createValidProvider();
-        String token = jwtProvider.generateToken("jane@example.com", null, null);
+        String token = jwtProvider.generateToken("jane@example.com", 42L, UserRole.USER);
 
         assertTrue(jwtProvider.validateToken(token));
         assertEquals("jane@example.com", jwtProvider.getEmailFromToken(token));
+        assertEquals("USER", jwtProvider.getRoleFromToken(token));
     }
 
     @Test

@@ -29,6 +29,8 @@ app:
   jwt:
     secret: ${JWT_SECRET}
     expiration: ${JWT_EXPIRATION:86400000}
+  auction-service:
+    url: ${AUCTION_SERVICE_URL:http://localhost:8082}
 
 auction-service:
   url: ${AUCTION_SERVICE_URL:http://localhost:8082}

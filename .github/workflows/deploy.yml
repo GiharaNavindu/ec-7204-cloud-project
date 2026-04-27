@@ -29,6 +29,10 @@ jobs:
             path: api-gateway
           - name: user-service
             path: user-service
+          - name: auction-service
+            path: auction-service
+          - name: bid-service
+            path: bid-service
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -64,6 +68,14 @@ jobs:
             path: user-service
             dockerfile: user-service/Dockerfile
             image: user-service
+          - name: auction-service
+            path: auction-service
+            dockerfile: auction-service/Dockerfile
+            image: auction-service
+          - name: bid-service
+            path: bid-service
+            dockerfile: bid-service/Dockerfile
+            image: bid-service
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -104,6 +116,10 @@ jobs:
             image: api-gateway
           - name: user-service
             image: user-service
+          - name: auction-service
+            image: auction-service
+          - name: bid-service
+            image: bid-service
     steps:
       - name: Log in to Azure
         uses: azure/login@v2
@@ -122,6 +138,12 @@ jobs:
                 ;;
               user-service)
                 APP_NAME="${{ vars.AZURE_USER_SERVICE_CONTAINER_APP_NAME }}"
+                ;;
+              auction-service)
+                APP_NAME="${{ vars.AZURE_AUCTION_SERVICE_CONTAINER_APP_NAME }}"
+                ;;
+              bid-service)
+                APP_NAME="${{ vars.AZURE_BID_SERVICE_CONTAINER_APP_NAME }}"
                 ;;
               *)
                 echo "Unknown service: ${{ matrix.service.name }}"

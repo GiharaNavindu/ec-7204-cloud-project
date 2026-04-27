@@ -1,5 +1,15 @@
 package com.gihara.bidservice.service;
 
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+
 import com.gihara.bidservice.dto.AuctionResponse;
 import com.gihara.bidservice.dto.BidRequest;
 import com.gihara.bidservice.dto.BidResponse;
@@ -7,17 +17,9 @@ import com.gihara.bidservice.entity.Bid;
 import com.gihara.bidservice.entity.BidStatus;
 import com.gihara.bidservice.event.BidPlacedEvent;
 import com.gihara.bidservice.repository.BidRepository;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
-
-import java.math.BigDecimal;
-import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -34,7 +36,7 @@ public class BidService {
     @Value("${rabbitmq.routing-key}")
     private String routingKey;
 
-    @Value("${auction-service.url}")
+    @Value("${app.auction-service.url:http://localhost:8082}")
     private String auctionServiceUrl;
 
     public BidResponse placeBid(BidRequest request, String userEmail, Long userId) {
@@ -80,8 +82,13 @@ public class BidService {
                 .placedAt(saved.getPlacedAt())
                 .build();
 
-        rabbitTemplate.convertAndSend(exchange, routingKey, event);
-        log.info("BidPlacedEvent published to RabbitMQ for auction={}", request.getAuctionId());
+        try {
+            rabbitTemplate.convertAndSend(exchange, routingKey, event);
+            log.info("BidPlacedEvent published to RabbitMQ for auction={}", request.getAuctionId());
+        } catch (Exception ex) {
+            // Do not fail bid placement because event publishing is eventual-consistency infrastructure.
+            log.warn("Bid persisted but event publish failed for auction={}: {}", request.getAuctionId(), ex.getMessage());
+        }
 
         return mapToResponse(saved);
     }
@@ -104,8 +111,9 @@ public class BidService {
     private AuctionResponse getAuction(Long auctionId) {
         try {
             return restTemplate.getForObject(
-                    auctionServiceUrl + "/api/auctions/" + auctionId,
-                    AuctionResponse.class);
+                auctionServiceUrl + "/api/auctions/" + auctionId,
+                AuctionResponse.class
+            );
         } catch (Exception e) {
             throw new RuntimeException("Could not reach auction-service: " + e.getMessage());
         }

@@ -48,4 +48,9 @@ public class AuctionController {
             @RequestParam AuctionStatus status) {
         return ResponseEntity.ok(auctionService.updateStatus(id, status));
     }
+
+    @GetMapping("/status")
+    public String status() {
+        return "Auction Service is up and running!";
+    }
 }

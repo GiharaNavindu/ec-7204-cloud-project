@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AuctionHub — Live Auctions</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        'primary': '#f97316',
+                        'primary-dark': '#ea580c',
+                        'surface': '#13131a',
+                        'surface-light': '#1a1a24',
+                        'background': '#0a0a0f',
+                        'border': '#1e1e2e',
+                    },
+                    fontFamily: {
+                        'syne': ['Syne', 'sans-serif'],
+                        'sans': ['DM Sans', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer base {
+            body { @apply bg-background text-gray-100 font-sans; }
+            h1, h2, h3 { @apply font-syne font-bold; }
+        }
+        .animate-pulse-slow {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <!-- Navbar -->
+    <nav class="sticky top-0 z-50 bg-surface/80 backdrop-blur-md border-b border-border px-6 py-4">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <div class="text-xl font-extrabold font-syne tracking-tight">
+                Auction<span class="text-primary">Hub</span>
+            </div>
+            <div class="flex items-center gap-4">
+                <button onclick="openCreateModal()" class="px-4 py-1.5 rounded-full bg-primary hover:bg-primary-dark text-white text-sm font-bold transition-all shadow-lg shadow-primary/20">
+                    + Create Auction
+                </button>
+                <div id="user-display" class="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface-light border border-border text-sm text-gray-400">
+                    <span class="w-2 h-2 rounded-full bg-green-500"></span>
+                    <span id="username">User</span>
+                </div>
+                <button onclick="API.auth.logout()" class="px-4 py-1.5 rounded-full border border-border text-sm text-gray-400 hover:text-red-500 hover:border-red-500/50 transition-all">
+                    Sign out
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-6 py-12">
+        <div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
+            <div>
+                <h1 class="text-4xl flex items-center gap-3">
+                    Live Auctions
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-red-500/10 border border-red-500/20 text-[10px] font-bold uppercase tracking-widest text-red-500">
+                        <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span> Live
+                    </span>
+                </h1>
+                <p id="auction-count" class="text-gray-500 mt-2">Loading available auctions...</p>
+            </div>
+
+            <!-- Filters -->
+            <div class="flex flex-wrap gap-2">
+                <button onclick="filterAuctions('all', this)" class="filter-btn active px-4 py-2 rounded-full border border-border bg-primary text-white text-sm font-medium transition-all">
+                    All
+                </button>
+                <button onclick="filterAuctions('IN_PROG', this)" class="filter-btn px-4 py-2 rounded-full border border-border text-gray-400 hover:text-white text-sm font-medium transition-all">
+                    Live
+                </button>
+                <button onclick="filterAuctions('OPENED', this)" class="filter-btn px-4 py-2 rounded-full border border-border text-gray-400 hover:text-white text-sm font-medium transition-all">
+                    Pending/Opened
+                </button>
+                <button onclick="filterAuctions('ENDED', this)" class="filter-btn px-4 py-2 rounded-full border border-border text-gray-400 hover:text-white text-sm font-medium transition-all">
+                    Ended
+                </button>
+            </div>
+        </div>
+
+        <!-- Auctions Grid -->
+        <div id="auctions-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div class="col-span-full py-24 text-center">
+                <div class="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin mx-auto mb-4"></div>
+                <p class="text-gray-500 font-medium">Fetching the latest auctions...</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- Create Auction Modal -->
+    <div id="create-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] hidden items-center justify-center p-4">
+        <div class="bg-surface border border-border rounded-3xl w-full max-w-lg overflow-hidden transform scale-95 opacity-0 transition-all duration-300" id="create-modal-content">
+            <div class="p-6 border-b border-border flex justify-between items-center">
+                <h2 class="text-2xl">Create Auction</h2>
+                <button onclick="closeCreateModal()" class="text-gray-400 hover:text-white text-xl">&times;</button>
+            </div>
+            <form id="create-auction-form" class="p-6 space-y-4">
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Title</label>
+                    <input type="text" id="auction-title" required placeholder="e.g. Vintage Rolex"
+                        class="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:border-primary transition-colors">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Description</label>
+                    <textarea id="auction-desc" required placeholder="Describe the item..." rows="3"
+                        class="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:border-primary transition-colors"></textarea>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Start Time</label>
+                        <input type="datetime-local" id="auction-start" required
+                            class="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:border-primary text-sm text-gray-300">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">End Time</label>
+                        <input type="datetime-local" id="auction-end" required
+                            class="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:border-primary text-sm text-gray-300">
+                    </div>
+                </div>
+                <button type="submit" class="w-full py-4 mt-4 bg-primary hover:bg-primary-dark text-white rounded-xl font-bold font-syne transition-all shadow-lg shadow-primary/20">
+                    Publish Auction
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script>
+        // Auth guard
+        if (!API.isAuthenticated()) {
+            window.location.href = "/index.html";
+        }
+
+        const user = API.getUser();
+        if (user) {
+            document.getElementById('username').textContent = user.name || user.email;
+            document.getElementById('user-display').classList.remove('hidden');
+        }
+
+        let allAuctions = [];
+        let allBids = {}; // Cache for highest bids
+
+        async function loadAuctions() {
+            try {
+                const data = await API.auctions.getAll();
+                allAuctions = Array.isArray(data) ? data : (data.content || data.auctions || []);
+                
+                document.getElementById('auction-count').textContent = 
+                    `${allAuctions.length} auction${allAuctions.length !== 1 ? 's' : ''} available now`;
+                
+                // Fetch highest bids for each auction to display correctly
+                await fetchHighestBids(allAuctions);
+                
+                renderAuctions(allAuctions);
+            } catch (err) {
+                console.error(err);
+                if(err.status === 401 || err.status === 403) {
+                    UI.showToast(err.message, 'error');
+                } else {
+                    showDemoData();
+                }
+            }
+        }
+
+        async function fetchHighestBids(auctions) {
+            const activeAuctions = auctions.filter(a => a.status !== 'ENDED' && a.status !== 'CLOSED');
+            // Use Promise.all to fetch bids concurrently for a snappy UI
+            await Promise.all(activeAuctions.map(async (a) => {
+                try {
+                    const bids = await API.bids.getHistory(a.id || a.auctionId);
+                    if (bids && bids.length > 0) {
+                        // Assuming the API returns latest first or we sort it
+                        const highest = Math.max(...bids.map(b => b.amount));
+                        allBids[a.id || a.auctionId] = highest;
+                    }
+                } catch (e) {
+                    // Ignore bid fetch errors (e.g. bid service down)
+                }
+            }));
+        }
+
+        function renderAuctions(auctions) {
+            const grid = document.getElementById('auctions-grid');
+            
+            if (auctions.length === 0) {
+                grid.innerHTML = `
+                    <div class="col-span-full py-24 text-center border-2 border-dashed border-border rounded-3xl">
+                        <div class="text-5xl mb-4">🔍</div>
+                        <h3 class="text-xl mb-2">No auctions found</h3>
+                        <p class="text-gray-500">Try a different filter or check back later.</p>
+                    </div>`;
+                return;
+            }
+
+            grid.innerHTML = auctions.map(a => {
+                const status = a.status || 'OPENED';
+                const isEnded = status === 'ENDED' || status === 'CLOSED';
+                const timeRemaining = UI.getTimeRemaining(a.endTime || a.endDate);
+                
+                let statusBadge = '';
+                if (status === 'IN_PROG') {
+                    statusBadge = '<span class="bg-green-500/10 border border-green-500/20 text-green-500">Live</span>';
+                } else if (isEnded) {
+                    statusBadge = '<span class="bg-gray-500/10 border border-gray-500/20 text-gray-500">Ended</span>';
+                } else {
+                    statusBadge = '<span class="bg-yellow-500/10 border border-yellow-500/20 text-yellow-500">Pending</span>';
+                }
+
+                // Get derived bid
+                const currentBid = allBids[a.id || a.auctionId] || 0;
+                
+                // Owner actions
+                const isOwner = user && user.userId === a.createdByUserId;
+                const canStart = isOwner && status === 'OPENED';
+
+                return `
+                <div class="group bg-surface border border-border rounded-3xl overflow-hidden transition-all hover:-translate-y-1 hover:border-primary/50 relative flex flex-col">
+                    <div onclick="location.href='/bid.html?id=${a.id || a.auctionId}'" class="cursor-pointer h-48 bg-surface-light relative flex items-center justify-center text-6xl group-hover:scale-105 transition-transform duration-500 z-0">
+                        ${getEmoji(a.title || a.itemName)}
+                        <div class="absolute top-4 right-4 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${statusBadge}</div>
+                    </div>
+                    <div class="p-6 flex-grow z-10 bg-surface">
+                        <h3 class="text-lg mb-2 group-hover:text-primary transition-colors line-clamp-1 cursor-pointer" onclick="location.href='/bid.html?id=${a.id || a.auctionId}'">${a.title || a.itemName}</h3>
+                        <p class="text-gray-500 text-sm mb-6 line-clamp-2 h-10">${a.description || 'No description available.'}</p>
+                        
+                        <div class="flex items-center justify-between pt-4 border-t border-border">
+                            <div>
+                                <div class="text-[10px] text-gray-500 uppercase tracking-widest mb-1">Highest Bid</div>
+                                <div class="text-xl font-bold text-primary font-syne">${currentBid > 0 ? UI.formatCurrency(currentBid) : '<span class="text-sm text-gray-500 font-sans">No bids</span>'}</div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-[10px] text-gray-500 uppercase tracking-widest mb-1">Ends In</div>
+                                <div class="text-sm font-medium text-gray-300">
+                                    ${isEnded ? 'Auction Ended' : (timeRemaining.days > 0 ? `${timeRemaining.days}d ` : '') + `${timeRemaining.hours}h ${timeRemaining.minutes}m`}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    ${canStart ? `
+                    <button onclick="startAuction(${a.id || a.auctionId})" class="w-full py-3 bg-yellow-600 hover:bg-yellow-500 text-white transition-all text-xs font-bold uppercase tracking-wider z-10">
+                        ▶ Start Auction Now
+                    </button>
+                    ` : ''}
+                    <button onclick="location.href='/bid.html?id=${a.id || a.auctionId}'" class="w-full py-4 bg-surface-light border-t border-border hover:bg-primary hover:text-white transition-all text-sm font-bold font-syne uppercase tracking-wider disabled:opacity-50 z-10"
+                            ${isEnded ? 'disabled' : ''}>
+                        ${isEnded ? 'View Result' : 'Enter Auction →'}
+                    </button>
+                </div>`;
+            }).join('');
+        }
+
+        function filterAuctions(status, btn) {
+            document.querySelectorAll('.filter-btn').forEach(b => {
+                b.classList.remove('bg-primary', 'text-white', 'active');
+                b.classList.add('text-gray-400');
+            });
+            btn.classList.add('bg-primary', 'text-white', 'active');
+            btn.classList.remove('text-gray-400');
+
+            if (status === 'all') {
+                renderAuctions(allAuctions);
+            } else {
+                const filtered = allAuctions.filter(a => (a.status || 'OPENED') === status);
+                renderAuctions(filtered);
+            }
+        }
+
+        // --- Create Auction Modal Logic ---
+        function openCreateModal() {
+            const modal = document.getElementById('create-modal');
+            const content = document.getElementById('create-modal-content');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            setTimeout(() => {
+                content.classList.remove('scale-95', 'opacity-0');
+                content.classList.add('scale-100', 'opacity-100');
+            }, 10);
+
+            // Default times (Current time + 3 days)
+            const now = new Date();
+            now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+            document.getElementById('auction-start').value = now.toISOString().slice(0, 16);
+            now.setDate(now.getDate() + 3);
+            document.getElementById('auction-end').value = now.toISOString().slice(0, 16);
+        }
+
+        function closeCreateModal() {
+            const modal = document.getElementById('create-modal');
+            const content = document.getElementById('create-modal-content');
+            content.classList.remove('scale-100', 'opacity-100');
+            content.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }, 300);
+        }
+
+        document.getElementById('create-auction-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = e.target.querySelector('button[type="submit"]');
+            btn.disabled = true;
+            btn.textContent = 'Publishing...';
+
+            const title = document.getElementById('auction-title').value;
+            const description = document.getElementById('auction-desc').value;
+            const startTime = document.getElementById('auction-start').value + ':00'; // Append seconds for backend LocalDateTime
+            const endTime = document.getElementById('auction-end').value + ':00';
+
+            try {
+                await API.auctions.create({ title, description, startTime, endTime });
+                UI.showToast('Auction created successfully! It is now OPENED.', 'success');
+                closeCreateModal();
+                loadAuctions(); // Refresh list
+                e.target.reset();
+            } catch (err) {
+                UI.showToast(err.message || 'Failed to create auction', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Publish Auction';
+            }
+        });
+
+        // --- Status Update Logic ---
+        async function startAuction(id) {
+            if(!confirm("Are you sure you want to transition this auction to IN_PROG (Live)?")) return;
+            
+            try {
+                await API.auctions.updateStatus(id, 'IN_PROG');
+                UI.showToast('Auction is now LIVE!', 'success');
+                loadAuctions(); // Refresh
+            } catch (err) {
+                UI.showToast(err.message || 'Failed to update status', 'error');
+            }
+        }
+
+        function getEmoji(title = "") {
+            const t = title.toLowerCase();
+            if (t.includes('art') || t.includes('paint')) return '🎨';
+            if (t.includes('tech') || t.includes('laptop') || t.includes('phone')) return '💻';
+            if (t.includes('watch') || t.includes('rolex')) return '⌚';
+            if (t.includes('car') || t.includes('auto')) return '🚗';
+            if (t.includes('diamond') || t.includes('jewel') || t.includes('ring')) return '💎';
+            return '🔨';
+        }
+
+        function showDemoData() {
+            allAuctions = [
+                { id: 1, title: 'Vintage Rolex Submariner', description: 'Rare 1965 model in pristine condition.', status: 'IN_PROG', endTime: new Date(Date.now() + 10000000).toISOString() },
+                { id: 2, title: 'MacBook Pro M3 Max', description: 'Brand new, sealed. 128GB RAM, 8TB SSD.', status: 'IN_PROG', endTime: new Date(Date.now() + 5000000).toISOString() },
+                { id: 3, title: 'Original Banksy Print', description: 'Certified original from private collection.', status: 'OPENED', endTime: new Date(Date.now() + 80000000).toISOString() }
+            ];
+            allBids = { 1: 12500, 2: 5200 }; // Fake bids
+            renderAuctions(allAuctions);
+            UI.showToast('Auction service unreachable. Showing demo data.', 'error');
+        }
+
+        loadAuctions();
+        setInterval(loadAuctions, 15000); // Refresh every 15s
+    </script>
+</body>
+</html>

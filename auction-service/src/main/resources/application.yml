@@ -6,8 +6,8 @@ spring:
     name: auction-service
   
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5433/auction_db}
-    username: ${DB_USERNAME:admin}
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/auction_db}
+    username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:password}
     driver-class-name: org.postgresql.Driver
 

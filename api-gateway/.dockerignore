@@ -1,0 +1,12 @@
+.git
+.gitignore
+.idea
+.vscode
+node_modules
+logs
+*.log
+tmp
+temp
+target/
+!target/
+!target/*.jar

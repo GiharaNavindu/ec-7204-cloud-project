@@ -6,6 +6,9 @@ server:
     max-swallow-size: 2MB
 
 spring:
+  web:
+    resources:
+      static-locations: classpath:/static/
   servlet:
     multipart:
       max-file-size: 2MB
@@ -149,10 +152,20 @@ app:
       - /api/users/register
       - /api/users/login
       - /api/users/status
+      - /api/auctions/status
+      - /api/bids/status
       - /actuator/health/**
       - /actuator/info
       - /actuator/prometheus
       - /fallback/**
+      - /
+      - /index.html
+      - /auctions.html
+      - /bid.html
+      - /js/**
+      - /css/**
+
+
     role-rules:
       - pattern: /api/users/admin/**
         roles: [ADMIN]
@@ -178,6 +191,10 @@ app:
         - /actuator/info
         - /actuator/prometheus
         - /fallback/**
+        - /
+        - /*.html
+        - /js/**
+        - /css/**
     cors:
       allowed-origin-patterns:
         - ${ALLOWED_ORIGIN_PATTERN:http://localhost:*}
@@ -211,7 +228,7 @@ resilience4j:
         minimumNumberOfCalls: 10
         permittedNumberOfCallsInHalfOpenState: 5
         failureRateThreshold: 50
-        slowCallDurationThreshold: 2s
+        slowCallDurationThreshold: 10s
         slowCallRateThreshold: 50
         waitDurationInOpenState: 30s
         automaticTransitionFromOpenToHalfOpenEnabled: true
@@ -230,7 +247,7 @@ resilience4j:
   timelimiter:
     configs:
       default:
-        timeoutDuration: 3s
+        timeoutDuration: 10s
     instances:
       userServiceCircuitBreaker:
         baseConfig: default

@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AuctionHub — Live Bid</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        'primary': '#f97316',
+                        'primary-dark': '#ea580c',
+                        'surface': '#13131a',
+                        'surface-light': '#1a1a24',
+                        'background': '#0a0a0f',
+                        'border': '#1e1e2e',
+                    },
+                    fontFamily: {
+                        'syne': ['Syne', 'sans-serif'],
+                        'sans': ['DM Sans', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer base {
+            body { @apply bg-background text-gray-100 font-sans; }
+            h1, h2, h3 { @apply font-syne font-bold; }
+        }
+        .bump { animation: bump 0.4s ease-out; }
+        @keyframes bump {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); @apply text-green-500; }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <!-- Navbar -->
+    <nav class="bg-surface/80 backdrop-blur-md border-b border-border px-6 py-4 sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto flex items-center justify-between">
+            <div class="text-xl font-extrabold font-syne tracking-tight">
+                Auction<span class="text-primary">Hub</span>
+            </div>
+            <a href="/auctions.html" class="px-4 py-1.5 rounded-full border border-border text-sm text-gray-400 hover:text-white transition-all flex items-center gap-2">
+                ← Back to auctions
+            </a>
+        </div>
+    </nav>
+
+    <main class="max-w-6xl mx-auto px-6 py-8">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            <!-- Left: Auction Details -->
+            <div class="lg:col-span-2 space-y-6">
+                <div class="bg-surface border border-border rounded-3xl overflow-hidden">
+                    <div id="auction-hero" class="h-64 bg-surface-light relative flex items-center justify-center text-8xl">
+                        <span id="auction-emoji">🔨</span>
+                        <div class="absolute top-6 left-6 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest bg-green-500/10 border border-green-500/20 text-green-500" id="status-badge">
+                            Live
+                        </div>
+                        <div class="absolute top-6 right-6 flex items-center gap-2 px-3 py-1 rounded-full bg-black/40 backdrop-blur-md border border-white/5 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                            <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
+                            <span id="ws-status">Live Updates</span>
+                        </div>
+                    </div>
+
+                    <div class="p-8">
+                        <h1 id="auction-title" class="text-4xl mb-4">Loading auction...</h1>
+                        <p id="auction-desc" class="text-gray-400 leading-relaxed mb-8">Please wait while we fetch the details.</p>
+
+                        <div class="grid grid-cols-3 gap-4 p-6 bg-surface-light rounded-2xl border border-border">
+                            <div>
+                                <div class="text-[10px] text-gray-500 uppercase tracking-widest mb-1">Current Bid</div>
+                                <div id="current-bid" class="text-2xl font-bold text-primary font-syne transition-all">$0</div>
+                            </div>
+                            <div>
+                                <div class="text-[10px] text-gray-500 uppercase tracking-widest mb-1">Starting</div>
+                                <div id="starting-bid" class="text-2xl font-bold text-gray-300 font-syne">$0</div>
+                            </div>
+                            <div>
+                                <div class="text-[10px] text-gray-500 uppercase tracking-widest mb-1">Total Bids</div>
+                                <div id="total-bids" class="text-2xl font-bold text-gray-300 font-syne">0</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bid History -->
+                <div class="bg-surface border border-border rounded-3xl p-8">
+                    <h3 class="text-lg mb-6 flex items-center gap-2">
+                        Recent Bids
+                        <span class="text-[10px] font-bold uppercase tracking-widest text-gray-500 px-2 py-0.5 rounded-md bg-surface-light">Real-time</span>
+                    </h3>
+                    <div id="bid-list" class="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+                        <div class="py-12 text-center text-gray-500 italic">No bids yet. Be the first!</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: Bidding Panel -->
+            <div class="space-y-6">
+                <!-- Countdown -->
+                <div class="bg-surface border border-border rounded-3xl p-8 text-center">
+                    <div class="text-[10px] text-gray-500 uppercase tracking-widest mb-6 font-bold">Time Remaining</div>
+                    <div id="countdown" class="flex justify-center gap-4">
+                        <div class="flex flex-col gap-1">
+                            <span id="cd-h" class="text-3xl font-bold font-syne bg-surface-light w-14 py-3 rounded-xl border border-border">00</span>
+                            <span class="text-[9px] text-gray-500 uppercase font-bold tracking-widest">Hrs</span>
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <span id="cd-m" class="text-3xl font-bold font-syne bg-surface-light w-14 py-3 rounded-xl border border-border">00</span>
+                            <span class="text-[9px] text-gray-500 uppercase font-bold tracking-widest">Min</span>
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <span id="cd-s" class="text-3xl font-bold font-syne bg-surface-light w-14 py-3 rounded-xl border border-border text-primary">00</span>
+                            <span class="text-[9px] text-gray-500 uppercase font-bold tracking-widest text-primary">Sec</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Place Bid -->
+                <div class="bg-surface border border-border rounded-3xl p-8">
+                    <h3 class="text-xl mb-6">Place Bid</h3>
+                    
+                    <div class="relative mb-6">
+                        <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">$</span>
+                        <input type="number" id="bid-amount" 
+                               class="w-full bg-background border border-border rounded-2xl py-4 pl-8 pr-4 text-2xl font-bold font-syne focus:outline-none focus:border-primary transition-colors"
+                               placeholder="0.00">
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-2 mb-6">
+                        <button onclick="quickBid(100)" class="py-2 rounded-xl bg-surface-light border border-border text-xs font-bold hover:border-primary transition-all">+$100</button>
+                        <button onclick="quickBid(500)" class="py-2 rounded-xl bg-surface-light border border-border text-xs font-bold hover:border-primary transition-all">+$500</button>
+                        <button onclick="quickBid(1000)" class="py-2 rounded-xl bg-surface-light border border-border text-xs font-bold hover:border-primary transition-all">+$1K</button>
+                    </div>
+
+                    <button id="place-bid-btn" onclick="placeBid()" class="w-full py-4 bg-primary hover:bg-primary-dark text-white rounded-2xl font-bold font-syne transition-all transform active:scale-[0.98] shadow-lg shadow-primary/20 mb-4">
+                        Place Bid →
+                    </button>
+
+                    <p id="bid-hint" class="text-center text-[11px] text-gray-500">
+                        Enter an amount higher than the current bid
+                    </p>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <script src="/js/api.js"></script>
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const auctionId = urlParams.get('id');
+
+        if (!auctionId) window.location.href = "/auctions.html";
+        if (!API.isAuthenticated()) window.location.href = "/index.html";
+
+        let currentAuction = null;
+        let countdownInterval = null;
+        let currentBidVal = 0;
+
+        async function init() {
+            try {
+                const data = await API.auctions.getById(auctionId);
+                renderAuction(data);
+                loadBidHistory();
+                startUpdates();
+            } catch (err) {
+                console.error(err);
+                UI.showToast('Failed to load auction. Showing demo.', 'error');
+                showDemo();
+            }
+        }
+
+        function renderAuction(a) {
+            currentAuction = a;
+            currentBidVal = a.currentBid || a.startingBid || a.startPrice || 0;
+
+            document.getElementById('auction-title').textContent = a.title || a.itemName;
+            document.getElementById('auction-desc').textContent = a.description || 'No description available.';
+            document.getElementById('auction-emoji').textContent = getEmoji(a.title || a.itemName);
+            
+            updatePriceUI(currentBidVal);
+            document.getElementById('starting-bid').textContent = UI.formatCurrency(a.startingBid || a.startPrice || 0);
+            document.getElementById('total-bids').textContent = a.totalBids || 0;
+
+            const isEnded = a.status === 'ENDED' || a.status === 'CLOSED';
+            if (isEnded) {
+                document.getElementById('status-badge').className = "absolute top-6 left-6 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest bg-gray-500/10 border border-gray-500/20 text-gray-500";
+                document.getElementById('status-badge').textContent = "Ended";
+                document.getElementById('place-bid-btn').disabled = true;
+                document.getElementById('place-bid-btn').textContent = "Auction Ended";
+                document.getElementById('place-bid-btn').className = "w-full py-4 bg-gray-800 text-gray-500 rounded-2xl font-bold font-syne cursor-not-allowed";
+            }
+
+            startCountdown(a.endTime || a.endDate);
+        }
+
+        function updatePriceUI(price) {
+            const el = document.getElementById('current-bid');
+            el.textContent = UI.formatCurrency(price);
+            el.classList.add('bump');
+            setTimeout(() => el.classList.remove('bump'), 400);
+
+            document.getElementById('bid-amount').value = price + 100;
+            document.getElementById('bid-hint').textContent = `Minimum bid: ${UI.formatCurrency(price + 0.01)}`;
+        }
+
+        async function loadBidHistory() {
+            try {
+                const history = await API.bids.getHistory(auctionId);
+                renderHistory(history);
+            } catch (err) {
+                // history might not be implemented yet in some versions
+            }
+        }
+
+        function renderHistory(bids) {
+            const list = document.getElementById('bid-list');
+            if (!bids || bids.length === 0) return;
+
+            list.innerHTML = bids.map((b, i) => `
+                <div class="flex items-center justify-between p-4 bg-surface-light rounded-xl border border-border ${i === 0 ? 'border-primary/30' : ''}">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary">
+                            ${(b.userEmail || b.bidder || '?').substring(0, 2).toUpperCase()}
+                        </div>
+                        <div>
+                            <div class="text-xs font-bold">${maskEmail(b.userEmail || b.bidder)}</div>
+                            <div class="text-[9px] text-gray-500 uppercase">${UI.formatDate(b.bidTime || b.timestamp)}</div>
+                        </div>
+                    </div>
+                    <div class="text-sm font-bold font-syne ${i === 0 ? 'text-primary' : ''}">
+                        ${UI.formatCurrency(b.amount || b.bidAmount)}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function maskEmail(email) {
+            if (!email || !email.includes('@')) return email || 'Bidder';
+            const [user, domain] = email.split('@');
+            return user.substring(0, 2) + "***@" + domain;
+        }
+
+        function startCountdown(endTime) {
+            if (countdownInterval) clearInterval(countdownInterval);
+            
+            function update() {
+                const t = UI.getTimeRemaining(endTime);
+                document.getElementById('cd-h').textContent = String(t.hours).padStart(2, '0');
+                document.getElementById('cd-m').textContent = String(t.minutes).padStart(2, '0');
+                document.getElementById('cd-s').textContent = String(t.seconds).padStart(2, '0');
+
+                if (t.total <= 0) {
+                    clearInterval(countdownInterval);
+                    init(); // Refresh status
+                }
+            }
+
+            update();
+            countdownInterval = setInterval(update, 1000);
+        }
+
+        function quickBid(inc) {
+            const input = document.getElementById('bid-amount');
+            input.value = currentBidVal + inc;
+            input.focus();
+        }
+
+        async function placeBid() {
+            const amount = parseFloat(document.getElementById('bid-amount').value);
+            const btn = document.getElementById('place-bid-btn');
+
+            if (amount <= currentBidVal) {
+                UI.showToast(`Bid must be higher than ${UI.formatCurrency(currentBidVal)}`, 'error');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Processing...';
+
+            try {
+                await API.bids.place(auctionId, amount);
+                UI.showToast('Bid placed successfully!', 'success');
+                // Optimistic update if WS is slow
+                currentBidVal = amount;
+                updatePriceUI(amount);
+                loadBidHistory();
+            } catch (err) {
+                UI.showToast(err.message || 'Failed to place bid', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Place Bid →';
+            }
+        }
+
+        function startUpdates() {
+            // In a real prod env, we'd use WebSockets. 
+            // Here we poll for simplicity and reliability across different Gateway configs
+            setInterval(async () => {
+                try {
+                    const a = await API.auctions.getById(auctionId);
+                    if (a.currentBid > currentBidVal) {
+                        currentBidVal = a.currentBid;
+                        updatePriceUI(a.currentBid);
+                        document.getElementById('total-bids').textContent = a.totalBids;
+                        loadBidHistory();
+                    }
+                } catch (e) {}
+            }, 5000);
+        }
+
+        function getEmoji(title = "") {
+            const t = title.toLowerCase();
+            if (t.includes('art')) return '🎨';
+            if (t.includes('tech') || t.includes('laptop') || t.includes('phone')) return '💻';
+            if (t.includes('watch')) return '⌚';
+            if (t.includes('car')) return '🚗';
+            if (t.includes('diamond') || t.includes('jewel')) return '💎';
+            return '🔨';
+        }
+
+        function showDemo() {
+            const demo = {
+                id: auctionId,
+                title: 'Vintage Rolex Submariner',
+                description: 'A rare 1965 Rolex Submariner in excellent condition. Original dial, case and bracelet. Full service history.',
+                currentBid: 12500,
+                startingBid: 8000,
+                status: 'IN_PROG',
+                endTime: new Date(Date.now() + 3600000).toISOString(),
+                totalBids: 14
+            };
+            renderAuction(demo);
+            renderHistory([
+                { userEmail: 'alice@example.com', amount: 12500, timestamp: new Date().toISOString() },
+                { userEmail: 'bob@example.com', amount: 12400, timestamp: new Date(Date.now() - 60000).toISOString() }
+            ]);
+        }
+
+        init();
+    </script>
+</body>
+</html>
