@@ -5,16 +5,20 @@
 
 const BASE_URL = window.location.origin;
 
-// Simple JWT decoder for browser
+/**
+ * Robust JWT decoder that handles Unicode and edge cases.
+ */
 function parseJwt(token) {
     try {
+        if (!token) return null;
         const base64Url = token.split('.')[1];
         const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
         const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
             return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-        }).join(''));
+        }).slice(0).join(''));
         return JSON.parse(jsonPayload);
     } catch (e) {
+        console.error("Failed to decode JWT:", e);
         return null;
     }
 }
@@ -22,27 +26,57 @@ function parseJwt(token) {
 const API = {
     // Auth Management
     getToken: () => localStorage.getItem('token'),
+    
+    /**
+     * Stores the token and immediately derives the user state from its claims.
+     */
     setToken: (token) => {
         localStorage.setItem('token', token);
         const decoded = parseJwt(token);
         if (decoded) {
-            API.setUser({ 
+            const userState = { 
                 email: decoded.sub, 
                 userId: decoded.userId, 
                 role: decoded.role 
-            });
+            };
+            localStorage.setItem('user', JSON.stringify(userState));
         }
     },
+
     removeToken: () => {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
     },
-    getUser: () => JSON.parse(localStorage.getItem('user') || 'null'),
-    setUser: (user) => localStorage.setItem('user', JSON.stringify(user)),
+
+    /**
+     * Returns the user state. If the user object is missing but a token exists,
+     * it re-decodes the token to restore the state.
+     */
+    getUser: () => {
+        let user = JSON.parse(localStorage.getItem('user') || 'null');
+        if (!user) {
+            const token = API.getToken();
+            if (token) {
+                const decoded = parseJwt(token);
+                if (decoded) {
+                    user = { 
+                        email: decoded.sub, 
+                        userId: decoded.userId, 
+                        role: decoded.role 
+                    };
+                    localStorage.setItem('user', JSON.stringify(user));
+                }
+            }
+        }
+        return user;
+    },
 
     isAuthenticated: () => !!localStorage.getItem('token'),
 
-    // Request Wrapper with Error Handling
+    /**
+     * Core request wrapper that automatically injects the JWT and handles
+     * security-related HTTP status codes from the Gateway.
+     */
     request: async (endpoint, options = {}) => {
         const token = API.getToken();
         
@@ -62,16 +96,20 @@ const API = {
         try {
             const response = await fetch(`${BASE_URL}${endpoint}`, config);
             
-            // Handle Graceful Errors
+            // Handle 401: Token expired or invalid
             if (response.status === 401) {
-                API.removeToken();
+                // Only redirect if we're not already on the login page
                 if (!window.location.pathname.endsWith('index.html') && window.location.pathname !== '/') {
+                    API.removeToken();
                     window.location.href = '/index.html';
                 }
-                throw new Error('Session expired. Please log in again.');
+                const data = await response.json().catch(() => ({}));
+                throw { status: 401, message: data.message || 'Session expired. Please log in again.' };
             }
+
+            // Handle 403: Forbidden (Authenticated but no permissions)
             if (response.status === 403) {
-                throw new Error('Forbidden: You do not have permission to perform this action.');
+                throw { status: 403, message: 'Forbidden: You do not have permission to perform this action.' };
             }
 
             const contentType = response.headers.get('content-type');
@@ -83,21 +121,19 @@ const API = {
             }
 
             if (!response.ok) {
-                // Handle 400 Bad Request or 500 Internal Server Error
                 throw { 
                     status: response.status, 
-                    message: (data && data.message) ? data.message : (typeof data === 'string' ? data : 'An unexpected error occurred') 
+                    message: (data && data.message) ? data.message : (typeof data === 'string' ? data : 'Request failed') 
                 };
             }
 
             return data;
         } catch (error) {
             console.error(`API Error [${endpoint}]:`, error);
-            throw error; // Re-throw to be caught by UI
+            throw error;
         }
     },
 
-    // Specific API Methods
     auth: {
         login: (email, password) => API.request('/api/users/login', {
             method: 'POST',
@@ -118,15 +154,15 @@ const API = {
         getById: (id) => API.request(`/api/auctions/${id}`),
         create: (auctionData) => {
             const user = API.getUser();
-            if (!user || !user.userId) throw new Error("User ID not found. Please log in again.");
-            // Inject createdByUserId required by DTO
-            const payload = {
-                ...auctionData,
-                createdByUserId: user.userId
-            };
+            if (!user || !user.userId) {
+                throw new Error("Authentication error: User ID could not be resolved from session.");
+            }
             return API.request('/api/auctions', {
                 method: 'POST',
-                body: JSON.stringify(payload)
+                body: JSON.stringify({
+                    ...auctionData,
+                    createdByUserId: user.userId
+                })
             });
         },
         updateStatus: (id, status) => API.request(`/api/auctions/${id}/status?status=${status}`, {
@@ -144,7 +180,9 @@ const API = {
     }
 };
 
-// UI Utilities
+/**
+ * Global UI Helpers for consistent data display and user feedback.
+ */
 const UI = {
     showToast: (message, type = 'info') => {
         const existing = document.getElementById('toast-container');
@@ -152,52 +190,37 @@ const UI = {
 
         const toast = document.createElement('div');
         toast.id = 'toast-container';
-        toast.className = `fixed bottom-4 right-4 px-6 py-4 rounded-xl shadow-2xl transform transition-all duration-300 translate-y-20 opacity-0 z-[9999] text-white font-bold tracking-wide flex items-center gap-3 ${
-            type === 'error' ? 'bg-red-600 border border-red-500' : type === 'success' ? 'bg-green-600 border border-green-500' : 'bg-primary border border-primary-dark'
+        toast.className = `fixed bottom-4 right-4 px-6 py-4 rounded-xl shadow-2xl transform transition-all duration-300 translate-y-20 opacity-0 z-[9999] text-white font-bold flex items-center gap-3 ${
+            type === 'error' ? 'bg-red-600 border border-red-500' : type === 'success' ? 'bg-green-600 border border-green-500' : 'bg-orange-500 border border-orange-400'
         }`;
         
         let icon = type === 'error' ? '⚠️' : type === 'success' ? '✅' : 'ℹ️';
-        toast.innerHTML = `<span class="text-xl">${icon}</span> <span>${message}</span>`;
+        toast.innerHTML = `<span>${icon}</span> <span>${message}</span>`;
         
         document.body.appendChild(toast);
-        
-        // Animate in
-        setTimeout(() => {
-            toast.classList.remove('translate-y-20', 'opacity-0');
-            toast.classList.add('translate-y-0', 'opacity-100');
-        }, 100);
-
-        // Remove
-        setTimeout(() => {
-            toast.classList.remove('translate-y-0', 'opacity-100');
-            toast.classList.add('translate-y-20', 'opacity-0');
-            setTimeout(() => toast.remove(), 300);
-        }, 4000);
+        setTimeout(() => { toast.classList.remove('translate-y-20', 'opacity-0'); }, 100);
+        setTimeout(() => { toast.classList.add('translate-y-20', 'opacity-0'); setTimeout(() => toast.remove(), 300); }, 4000);
     },
 
     formatCurrency: (amount) => {
-        if (!amount && amount !== 0) return '$0.00';
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'USD'
-        }).format(amount);
+        return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount || 0);
     },
 
     formatDate: (dateString) => {
         if (!dateString) return 'N/A';
-        return new Date(dateString).toLocaleString([], { 
-            month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
-        });
+        return new Date(dateString).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
     },
 
     getTimeRemaining: (endTime) => {
         if (!endTime) return { total: 0, days: 0, hours: 0, minutes: 0, seconds: 0 };
-        const total = Date.parse(endTime) - Date.parse(new Date());
+        const total = Date.parse(endTime) - Date.now();
         if (total <= 0) return { total: 0, days: 0, hours: 0, minutes: 0, seconds: 0 };
-        const seconds = Math.floor((total / 1000) % 60);
-        const minutes = Math.floor((total / 1000 / 60) % 60);
-        const hours = Math.floor((total / (1000 * 60 * 60)) % 24);
-        const days = Math.floor(total / (1000 * 60 * 60 * 24));
-        return { total, days, hours, minutes, seconds };
+        return {
+            total,
+            days: Math.floor(total / (1000 * 60 * 60 * 24)),
+            hours: Math.floor((total / (1000 * 60 * 60)) % 24),
+            minutes: Math.floor((total / 1000 / 60) % 60),
+            seconds: Math.floor((total / 1000) % 60)
+        };
     }
 };
