@@ -1,11 +1,16 @@
+version: '3.8'
+
 services:
   postgres:
-    image: postgres:15-alpine
+    image: postgres
     container_name: auction-postgres
     environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: user_db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: postgres
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - postgres_data:/var/lib/postgresql/data
     ports:
       - "5433:5432"
 
@@ -73,6 +78,24 @@ services:
       - postgres
     ports:
       - "8081:8081"
+
+  auction-service:
+    build:
+      context: ./auction-service
+      dockerfile: Dockerfile
+    container_name: auction-service
+    environment:
+      DB_URL: ${AUCTION_DB_URL}
+      DB_USERNAME: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      EUREKA_SERVER_URL: ${EUREKA_SERVER_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION: ${JWT_EXPIRATION}
+    depends_on:
+      - postgres
+      - discovery-server
+    ports:
+      - "8181:8181"
 
   api-gateway:
     build:

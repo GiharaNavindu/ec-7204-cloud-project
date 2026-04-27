@@ -22,6 +22,7 @@ import com.gihara.userservice.dto.LoginResponse;
 import com.gihara.userservice.dto.UserLoginRequest;
 import com.gihara.userservice.dto.UserRegistrationRequest;
 import com.gihara.userservice.entity.User;
+import com.gihara.userservice.enums.UserRole;
 import com.gihara.userservice.repository.UserRepository;
 import com.gihara.userservice.util.JwtProvider;
 
@@ -52,10 +53,10 @@ class UserServiceTest {
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(captor.capture());
         User saved = captor.getValue();
-        assertEquals("Jane", saved.getName());
+        assertEquals("Jane", saved.getUsername());
         assertEquals("jane@example.com", saved.getEmail());
         assertEquals("encoded-pass", saved.getPassword());
-        assertEquals(User.Role.USER, saved.getRole());
+        assertEquals(UserRole.USER, saved.getUserRole());
         assertNotNull(saved.getCreatedAt());
     }
 
@@ -100,7 +101,7 @@ class UserServiceTest {
 
         when(userRepository.findByEmail("jane@example.com")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("plain-pass", "encoded-pass")).thenReturn(true);
-        when(jwtProvider.generateToken("jane@example.com")).thenReturn("jwt-token");
+        when(jwtProvider.generateToken("jane@example.com", null, null)).thenReturn("jwt-token");
         when(jwtProvider.getExpirationTime()).thenReturn(86400000L);
 
         LoginResponse response = userService.login(request);

@@ -1,3 +1,8 @@
+/**
+ * JwtAuthenticationFilter
+ * Runs on every single request before it hits the constructor
+ */
+
 package com.gihara.userservice.security;
 
 import java.io.IOException;
