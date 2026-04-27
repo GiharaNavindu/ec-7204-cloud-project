@@ -83,8 +83,13 @@ public class BidService {
                 .placedAt(saved.getPlacedAt())
                 .build();
 
-        rabbitTemplate.convertAndSend(exchange, routingKey, event);
-        log.info("BidPlacedEvent published to RabbitMQ for auction={}", request.getAuctionId());
+        try {
+            rabbitTemplate.convertAndSend(exchange, routingKey, event);
+            log.info("BidPlacedEvent published to RabbitMQ for auction={}", request.getAuctionId());
+        } catch (Exception ex) {
+            // Do not fail bid placement because event publishing is eventual-consistency infrastructure.
+            log.warn("Bid persisted but event publish failed for auction={}: {}", request.getAuctionId(), ex.getMessage());
+        }
 
         return mapToResponse(saved);
     }
