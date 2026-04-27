@@ -1,0 +1,38 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: bid-service
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/bid_db}
+    username: ${DB_USERNAME:admin}
+    password: ${DB_PASSWORD:password}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: 5672
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+
+app:
+  jwt:
+    secret: ${JWT_SECRET}
+    expiration: ${JWT_EXPIRATION:86400000}
+  auction-service:
+    url: ${AUCTION_SERVICE_URL:http://localhost:8082}
+
+# RabbitMQ exchange and queue names - defined here so they're easy to change
+rabbitmq:
+  exchange: bid.exchange
+  routing-key: bid.placed

@@ -152,7 +152,9 @@ app:
       - /api/users/register
       - /api/users/login
       - /api/users/status
-      - /actuator/health
+      - /api/auctions/status
+      - /api/bids/status
+      - /actuator/health/**
       - /actuator/info
       - /actuator/prometheus
       - /fallback/**
