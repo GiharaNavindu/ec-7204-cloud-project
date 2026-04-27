@@ -154,6 +154,7 @@ app:
       - /api/users/status
       - /api/auctions/status
       - /api/bids/status
+      - /api/notifications/status
       - /actuator/health/**
       - /actuator/info
       - /actuator/prometheus

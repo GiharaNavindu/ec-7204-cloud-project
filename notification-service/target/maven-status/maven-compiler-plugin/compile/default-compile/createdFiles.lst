@@ -1,0 +1,3 @@
+com\gihara\notificationservice\NotificationServiceApplication.class
+com\gihara\notificationservice\config\SecurityConfig.class
+com\gihara\notificationservice\controller\HealthController.class
