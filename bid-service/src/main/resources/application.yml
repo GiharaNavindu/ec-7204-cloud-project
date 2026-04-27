@@ -25,15 +25,12 @@ spring:
     username: ${RABBITMQ_USERNAME:guest}
     password: ${RABBITMQ_PASSWORD:guest}
 
-eureka:
-  client:
-    service-url:
-      defaultZone: ${EUREKA_SERVER_URL:http://localhost:8761/eureka/}
-
 app:
   jwt:
     secret: ${JWT_SECRET}
     expiration: ${JWT_EXPIRATION:86400000}
+  auction-service:
+    url: ${AUCTION_SERVICE_URL:http://localhost:8082}
 
 # RabbitMQ exchange and queue names - defined here so they're easy to change
 rabbitmq:
