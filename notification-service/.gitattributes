@@ -1,2 +1,20 @@
+# Normalize text files by default
+* text=auto
+
+# Source and config files use LF
+*.java text eol=lf
+*.xml text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.properties text eol=lf
+*.md text eol=lf
+*.gitignore text eol=lf
+*.gitattributes text eol=lf
+
+# Maven wrapper scripts keep platform-native line endings
 /mvnw text eol=lf
 *.cmd text eol=crlf
+
+# Binary files
+*.jar binary
+*.class binary
