@@ -232,7 +232,7 @@ resilience4j:
   timelimiter:
     configs:
       default:
-        timeoutDuration: 3s
+        timeoutDuration: 10s
     instances:
       userServiceCircuitBreaker:
         baseConfig: default
