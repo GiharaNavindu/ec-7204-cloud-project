@@ -30,27 +30,15 @@ function Post-Json {
         [hashtable]$Headers = @{}
     )
     $json = $Body | ConvertTo-Json -Depth 10
-    Write-Host "Sending POST to $Url with body: $json" -ForegroundColor DarkGray
     try {
         return Invoke-RestMethod -Method Post -Uri $Url -Headers $Headers -ContentType "application/json" -Body $json
     }
     catch {
-        $errMsg = $_.Exception.Message
-        $statusCode = $_.Exception.Response.StatusCode.Value
-        Write-Host "`n❌ Server Error [$statusCode]: $errMsg" -ForegroundColor Red
-        
         if ($_.Exception.Response) {
-            try {
-                $stream = $_.Exception.Response.GetResponseStream()
-                $reader = New-Object System.IO.StreamReader($stream)
-                $errBody = $reader.ReadToEnd()
-                if ($errBody) {
-                    Write-Host "Response body: $errBody" -ForegroundColor Red
-                }
-            }
-            catch {
-                Write-Host "Could not read response body" -ForegroundColor DarkRed
-            }
+            $stream = $_.Exception.Response.GetResponseStream()
+            $reader = New-Object System.IO.StreamReader($stream)
+            $errBody = $reader.ReadToEnd()
+            Write-Host "`n❌ Server Rejected Request: $errBody`n" -ForegroundColor Red
         }
         throw
     }
