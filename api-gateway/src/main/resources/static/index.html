@@ -1,443 +1,223 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AuctionHub — Sign In</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
-    <style>
-        :root {
-          --bg: #0a0a0f;
-          --surface: #13131a;
-          --border: #1e1e2e;
-          --accent: #f97316;
-          --accent2: #fb923c;
-          --text: #f1f0ee;
-          --muted: #6b6b7b;
-          --success: #22c55e;
-          --error: #ef4444;
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        'primary': '#f97316',
+                        'primary-dark': '#ea580c',
+                        'surface': '#13131a',
+                        'background': '#0a0a0f',
+                        'border': '#1e1e2e',
+                    },
+                    fontFamily: {
+                        'syne': ['Syne', 'sans-serif'],
+                        'sans': ['DM Sans', 'sans-serif'],
+                    }
+                }
+            }
         }
-
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-
-        body {
-          font-family: 'DM Sans', sans-serif;
-          background: var(--bg);
-          color: var(--text);
-          min-height: 100vh;
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          overflow: hidden;
+    </script>
+    <style type="text/tailwindcss">
+        @layer base {
+            body { @apply bg-background text-gray-100 font-sans; }
+            h1, h2, h3 { @apply font-syne font-bold; }
         }
-
-        /* Left panel */
-        .hero {
-          background: linear-gradient(135deg, #0f0a04 0%, #1a0f02 50%, #0a0a0f 100%);
-          display: flex;
-          flex-direction: column;
-          justify-content: space-between;
-          padding: 3rem;
-          position: relative;
-          overflow: hidden;
-        }
-
-        .hero::before {
-          content: '';
-          position: absolute;
-          width: 500px; height: 500px;
-          background: radial-gradient(circle, rgba(249,115,22,0.15) 0%, transparent 70%);
-          top: -100px; left: -100px;
-          border-radius: 50%;
-        }
-
-        .hero::after {
-          content: '';
-          position: absolute;
-          width: 300px; height: 300px;
-          background: radial-gradient(circle, rgba(249,115,22,0.08) 0%, transparent 70%);
-          bottom: 100px; right: -50px;
-          border-radius: 50%;
-        }
-
-        .logo {
-          font-family: 'Syne', sans-serif;
-          font-size: 1.4rem;
-          font-weight: 800;
-          letter-spacing: -0.02em;
-          position: relative;
-          z-index: 1;
-        }
-
-        .logo span { color: var(--accent); }
-
-        .hero-content {
-          position: relative;
-          z-index: 1;
-        }
-
-        .hero-tag {
-          display: inline-block;
-          background: rgba(249,115,22,0.15);
-          border: 1px solid rgba(249,115,22,0.3);
-          color: var(--accent);
-          font-size: 0.75rem;
-          font-weight: 500;
-          letter-spacing: 0.1em;
-          text-transform: uppercase;
-          padding: 0.35rem 0.75rem;
-          border-radius: 100px;
-          margin-bottom: 1.5rem;
-        }
-
-        .hero h1 {
-          font-family: 'Syne', sans-serif;
-          font-size: 3.5rem;
-          font-weight: 800;
-          line-height: 1.05;
-          letter-spacing: -0.03em;
-          margin-bottom: 1.25rem;
-        }
-
-        .hero h1 em {
-          font-style: normal;
-          color: var(--accent);
-          display: block;
-        }
-
-        .hero p {
-          color: var(--muted);
-          font-size: 1rem;
-          line-height: 1.6;
-          max-width: 320px;
-        }
-
-        .stats {
-          display: flex;
-          gap: 2.5rem;
-          position: relative;
-          z-index: 1;
-        }
-
-        .stat-value {
-          font-family: 'Syne', sans-serif;
-          font-size: 1.8rem;
-          font-weight: 700;
-          color: var(--text);
-        }
-
-        .stat-label {
-          font-size: 0.75rem;
-          color: var(--muted);
-          margin-top: 0.15rem;
-        }
-
-        /* Right panel */
-        .auth-panel {
-          background: var(--surface);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 3rem;
-        }
-
-        .auth-box {
-          width: 100%;
-          max-width: 380px;
-        }
-
-        .auth-box h2 {
-          font-family: 'Syne', sans-serif;
-          font-size: 1.75rem;
-          font-weight: 700;
-          letter-spacing: -0.02em;
-          margin-bottom: 0.5rem;
-        }
-
-        .auth-box .subtitle {
-          color: var(--muted);
-          font-size: 0.9rem;
-          margin-bottom: 2rem;
-        }
-
-        .tabs {
-          display: flex;
-          background: var(--bg);
-          border-radius: 10px;
-          padding: 4px;
-          margin-bottom: 2rem;
-          border: 1px solid var(--border);
-        }
-
-        .tab {
-          flex: 1;
-          padding: 0.6rem;
-          border: none;
-          background: transparent;
-          color: var(--muted);
-          font-family: 'DM Sans', sans-serif;
-          font-size: 0.9rem;
-          font-weight: 500;
-          border-radius: 7px;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .tab.active {
-          background: var(--accent);
-          color: white;
-        }
-
-        .field {
-          margin-bottom: 1rem;
-        }
-
-        label {
-          display: block;
-          font-size: 0.8rem;
-          font-weight: 500;
-          color: var(--muted);
-          letter-spacing: 0.05em;
-          text-transform: uppercase;
-          margin-bottom: 0.4rem;
-        }
-
-        input {
-          width: 100%;
-          padding: 0.8rem 1rem;
-          background: var(--bg);
-          border: 1px solid var(--border);
-          border-radius: 8px;
-          color: var(--text);
-          font-family: 'DM Sans', sans-serif;
-          font-size: 0.95rem;
-          transition: border-color 0.2s;
-          outline: none;
-        }
-
-        input:focus { border-color: var(--accent); }
-
-        .btn {
-          width: 100%;
-          padding: 0.9rem;
-          background: var(--accent);
-          color: white;
-          border: none;
-          border-radius: 8px;
-          font-family: 'Syne', sans-serif;
-          font-size: 1rem;
-          font-weight: 700;
-          cursor: pointer;
-          margin-top: 0.5rem;
-          transition: all 0.2s;
-          letter-spacing: 0.02em;
-        }
-
-        .btn:hover { background: var(--accent2); transform: translateY(-1px); }
-        .btn:active { transform: translateY(0); }
-        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-
-        .message {
-          margin-top: 1rem;
-          padding: 0.75rem 1rem;
-          border-radius: 8px;
-          font-size: 0.875rem;
-          display: none;
-        }
-
-        .message.error { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: var(--error); display: block; }
-        .message.success { background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.3); color: var(--success); display: block; }
-
-        .form-section { display: none; }
-        .form-section.active { display: block; }
-
-        @media (max-width: 768px) {
-          body { grid-template-columns: 1fr; }
-          .hero { display: none; }
+        .hero-gradient {
+            background: linear-gradient(135deg, #0f0a04 0%, #1a0f02 50%, #0a0a0f 100%);
         }
     </style>
 </head>
-<body>
+<body class="min-h-screen flex overflow-hidden">
+    <!-- Left Hero Panel -->
+    <div class="hidden lg:flex flex-col justify-between w-1/2 p-12 hero-gradient relative overflow-hidden border-r border-border">
+        <div class="relative z-10">
+            <div class="text-2xl font-extrabold font-syne tracking-tight">
+                Auction<span class="text-primary">Hub</span>
+            </div>
+        </div>
 
-<div class="hero">
-    <div class="logo">Auction<span>Hub</span></div>
-    <div class="hero-content">
-        <div class="hero-tag">🔨 Live Bidding Platform</div>
-        <h1>Bid smart.<em>Win big.</em></h1>
-        <p>Real-time auctions powered by cloud-native architecture. Every bid, every second, perfectly tracked.</p>
+        <div class="relative z-10 max-w-lg">
+            <span class="inline-block px-3 py-1 text-xs font-bold tracking-widest uppercase rounded-full bg-primary/10 border border-primary/30 text-primary mb-6">
+                🔨 Live Bidding Platform
+            </span>
+            <h1 class="text-6xl mb-6 leading-[1.1]">
+                Bid smart.<br>
+                <span class="text-primary">Win big.</span>
+            </h1>
+            <p class="text-gray-400 text-lg leading-relaxed max-w-sm">
+                Real-time auctions powered by cloud-native architecture. Every bid, every second, perfectly tracked.
+            </p>
+        </div>
+
+        <div class="relative z-10 flex gap-12">
+            <div>
+                <div class="text-3xl font-bold font-syne">Live</div>
+                <div class="text-xs text-gray-500 uppercase tracking-wider">Auctions now</div>
+            </div>
+            <div>
+                <div class="text-3xl font-bold font-syne">Real-time</div>
+                <div class="text-xs text-gray-500 uppercase tracking-wider">Bid updates</div>
+            </div>
+            <div>
+                <div class="text-3xl font-bold font-syne">Secure</div>
+                <div class="text-xs text-gray-500 uppercase tracking-wider">JWT auth</div>
+            </div>
+        </div>
+
+        <!-- Decorative elements -->
+        <div class="absolute -top-24 -left-24 w-96 h-96 bg-primary/10 rounded-full blur-[100px]"></div>
+        <div class="absolute -bottom-24 -right-24 w-64 h-64 bg-primary/5 rounded-full blur-[80px]"></div>
     </div>
-    <div class="stats">
-        <div>
-            <div class="stat-value">Live</div>
-            <div class="stat-label">Auctions now</div>
-        </div>
-        <div>
-            <div class="stat-value">Real-time</div>
-            <div class="stat-label">Bid updates</div>
-        </div>
-        <div>
-            <div class="stat-value">Secure</div>
-            <div class="stat-label">JWT auth</div>
+
+    <!-- Right Auth Panel -->
+    <div class="w-full lg:w-1/2 flex items-center justify-center p-8 bg-surface">
+        <div class="w-full max-w-md">
+            <div id="auth-header" class="mb-8">
+                <h2 class="text-3xl mb-2">Welcome back</h2>
+                <p class="text-gray-400">Sign in to start bidding on live auctions</p>
+            </div>
+
+            <!-- Tabs -->
+            <div class="flex p-1 mb-8 rounded-xl bg-background border border-border">
+                <button onclick="switchTab('login')" id="tab-login" class="flex-1 py-2 text-sm font-medium rounded-lg transition-all bg-primary text-white">
+                    Sign In
+                </button>
+                <button onclick="switchTab('register')" id="tab-register" class="flex-1 py-2 text-sm font-medium rounded-lg transition-all text-gray-400 hover:text-white">
+                    Register
+                </button>
+            </div>
+
+            <!-- Login Form -->
+            <form id="login-form" class="space-y-4">
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Email</label>
+                    <input type="email" id="login-email" required placeholder="you@example.com"
+                        class="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:border-primary transition-colors">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Password</label>
+                    <input type="password" id="login-password" required placeholder="••••••••"
+                        class="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:border-primary transition-colors">
+                </div>
+                <button type="submit" class="w-full py-4 bg-primary hover:bg-primary-dark text-white rounded-xl font-bold font-syne transition-all transform active:scale-[0.98] shadow-lg shadow-primary/20">
+                    Sign In →
+                </button>
+            </form>
+
+            <!-- Register Form -->
+            <form id="register-form" class="hidden space-y-4">
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Username</label>
+                    <input type="text" id="reg-username" required placeholder="johndoe"
+                        class="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:border-primary transition-colors">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Email</label>
+                    <input type="email" id="reg-email" required placeholder="you@example.com"
+                        class="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:border-primary transition-colors">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Password</label>
+                    <input type="password" id="reg-password" required placeholder="Min. 8 characters"
+                        class="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:border-primary transition-colors">
+                </div>
+                <button type="submit" class="w-full py-4 bg-primary hover:bg-primary-dark text-white rounded-xl font-bold font-syne transition-all transform active:scale-[0.98] shadow-lg shadow-primary/20">
+                    Create Account →
+                </button>
+            </form>
         </div>
     </div>
-</div>
 
-<div class="auth-panel">
-    <div class="auth-box">
-        <h2>Welcome back</h2>
-        <p class="subtitle">Sign in to start bidding on live auctions</p>
-
-        <div class="tabs">
-            <button class="tab active" onclick="switchTab('login')">Sign In</button>
-            <button class="tab" onclick="switchTab('register')">Register</button>
-        </div>
-
-        <!-- Login -->
-        <div class="form-section active" id="login-section">
-            <div class="field">
-                <label>Email</label>
-                <input type="email" id="login-email" placeholder="you@example.com" autocomplete="email">
-            </div>
-            <div class="field">
-                <label>Password</label>
-                <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password">
-            </div>
-            <button class="btn" onclick="login()" id="login-btn">Sign In →</button>
-        </div>
-
-        <!-- Register -->
-        <div class="form-section" id="register-section">
-            <div class="field">
-                <label>Username</label>
-                <input type="text" id="reg-username" placeholder="yourname">
-            </div>
-            <div class="field">
-                <label>Email</label>
-                <input type="email" id="reg-email" placeholder="you@example.com">
-            </div>
-            <div class="field">
-                <label>Password</label>
-                <input type="password" id="reg-password" placeholder="Min. 8 characters">
-            </div>
-            <button class="btn" onclick="register()" id="register-btn">Create Account →</button>
-        </div>
-
-        <div class="message" id="message"></div>
-    </div>
-</div>
-
-<script>
-    // Redirect if already logged in
-    if (localStorage.getItem('token')) {
-      window.location.href = '/auctions.html';
-    }
-
-    function switchTab(tab) {
-      document.querySelectorAll('.tab').forEach((t, i) => {
-        t.classList.toggle('active', (tab === 'login' && i === 0) || (tab === 'register' && i === 1));
-      });
-      document.getElementById('login-section').classList.toggle('active', tab === 'login');
-      document.getElementById('register-section').classList.toggle('active', tab === 'register');
-      document.getElementById('message').className = 'message';
-
-      const h2 = document.querySelector('.auth-box h2');
-      const sub = document.querySelector('.subtitle');
-      if (tab === 'login') {
-        h2.textContent = 'Welcome back';
-        sub.textContent = 'Sign in to start bidding on live auctions';
-      } else {
-        h2.textContent = 'Create account';
-        sub.textContent = 'Join thousands of bidders on AuctionHub';
-      }
-    }
-
-    function showMessage(text, type) {
-      const el = document.getElementById('message');
-      el.textContent = text;
-      el.className = 'message ' + type;
-    }
-
-    async function login() {
-      const email = document.getElementById('login-email').value.trim();
-      const password = document.getElementById('login-password').value;
-      const btn = document.getElementById('login-btn');
-
-      if (!email || !password) { showMessage('Please fill in all fields', 'error'); return; }
-
-      btn.disabled = true;
-      btn.textContent = 'Signing in...';
-
-      try {
-        const res = await fetch('/api/users/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password })
-        });
-
-        const data = await res.json();
-
-        if (!res.ok) {
-          showMessage(data.message || 'Invalid credentials', 'error');
-          return;
+    <script src="/js/api.js"></script>
+    <script>
+        // Redirect if already logged in
+        if (API.isAuthenticated()) {
+            window.location.href = "/auctions.html";
         }
 
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('email', data.email);
-        window.location.href = '/auctions.html';
+        const loginForm = document.getElementById('login-form');
+        const registerForm = document.getElementById('register-form');
+        const authHeaderH2 = document.querySelector('#auth-header h2');
+        const authHeaderP = document.querySelector('#auth-header p');
+        const tabLogin = document.getElementById('tab-login');
+        const tabRegister = document.getElementById('tab-register');
 
-      } catch (e) {
-        showMessage('Cannot reach server. Is the gateway running?', 'error');
-      } finally {
-        btn.disabled = false;
-        btn.textContent = 'Sign In →';
-      }
-    }
-
-    async function register() {
-      const username = document.getElementById('reg-username').value.trim();
-      const email = document.getElementById('reg-email').value.trim();
-      const password = document.getElementById('reg-password').value;
-      const btn = document.getElementById('register-btn');
-
-      if (!username || !email || !password) { showMessage('Please fill in all fields', 'error'); return; }
-      if (password.length < 8) { showMessage('Password must be at least 8 characters', 'error'); return; }
-
-      btn.disabled = true;
-      btn.textContent = 'Creating account...';
-
-      try {
-        const res = await fetch('/api/users/register', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, email, password })
-        });
-
-        const text = await res.text();
-
-        if (!res.ok) {
-          showMessage(text || 'Registration failed', 'error');
-          return;
+        function switchTab(tab) {
+            if (tab === 'login') {
+                loginForm.classList.remove('hidden');
+                registerForm.classList.add('hidden');
+                tabLogin.className = "flex-1 py-2 text-sm font-medium rounded-lg transition-all bg-primary text-white";
+                tabRegister.className = "flex-1 py-2 text-sm font-medium rounded-lg transition-all text-gray-400 hover:text-white";
+                authHeaderH2.textContent = "Welcome back";
+                authHeaderP.textContent = "Sign in to start bidding on live auctions";
+            } else {
+                loginForm.classList.add('hidden');
+                registerForm.classList.remove('hidden');
+                tabLogin.className = "flex-1 py-2 text-sm font-medium rounded-lg transition-all text-gray-400 hover:text-white";
+                tabRegister.className = "flex-1 py-2 text-sm font-medium rounded-lg transition-all bg-primary text-white";
+                authHeaderH2.textContent = "Create account";
+                authHeaderP.textContent = "Join thousands of bidders on AuctionHub";
+            }
         }
 
-        showMessage('Account created! Please sign in.', 'success');
-        setTimeout(() => switchTab('login'), 1500);
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            
+            const btn = loginForm.querySelector('button');
+            btn.disabled = true;
+            btn.textContent = 'Signing in...';
 
-      } catch (e) {
-        showMessage('Cannot reach server.', 'error');
-      } finally {
-        btn.disabled = false;
-        btn.textContent = 'Create Account →';
-      }
-    }
+            try {
+                const data = await API.auth.login(email, password);
+                API.setToken(data.token);
+                API.setUser({ email: data.email, name: data.name || email.split('@')[0] });
+                window.location.href = "/auctions.html";
+            } catch (err) {
+                UI.showToast(err.message || 'Login failed', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Sign In →';
+            }
+        });
 
-    // Allow Enter key
-    document.addEventListener('keydown', e => {
-      if (e.key === 'Enter') {
-        const active = document.querySelector('.form-section.active').id;
-        if (active === 'login-section') login();
-        else register();
-      }
-    });
-</script>
+        registerForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('reg-username').value;
+            const email = document.getElementById('reg-email').value;
+            const password = document.getElementById('reg-password').value;
+
+            if (password.length < 8) {
+                UI.showToast('Password must be at least 8 characters', 'error');
+                return;
+            }
+
+            const btn = registerForm.querySelector('button');
+            btn.disabled = true;
+            btn.textContent = 'Creating account...';
+
+            try {
+                await API.auth.register({ name, email, password });
+                UI.showToast('Account created! Please sign in.', 'success');
+                setTimeout(() => switchTab('login'), 1500);
+            } catch (err) {
+                UI.showToast(err.message || 'Registration failed', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Create Account →';
+            }
+        });
+    </script>
 </body>
 </html>
