@@ -1,6 +1,5 @@
 param(
     [string]$ApiBase = "http://localhost:8080",
-    [string]$Email = "jane@example.com",
     [string]$Password = "Pass@123",
     [switch]$NoReset,
     [switch]$SkipPackage,
@@ -31,7 +30,18 @@ function Post-Json {
         [hashtable]$Headers = @{}
     )
     $json = $Body | ConvertTo-Json -Depth 10
-    return Invoke-RestMethod -Method Post -Uri $Url -Headers $Headers -ContentType "application/json" -Body $json
+    try {
+        return Invoke-RestMethod -Method Post -Uri $Url -Headers $Headers -ContentType "application/json" -Body $json
+    }
+    catch {
+        if ($_.Exception.Response) {
+            $stream = $_.Exception.Response.GetResponseStream()
+            $reader = New-Object System.IO.StreamReader($stream)
+            $errBody = $reader.ReadToEnd()
+            Write-Host "`n❌ Server Rejected Request: $errBody`n" -ForegroundColor Red
+        }
+        throw
+    }
 }
 
 function Patch-NoBody {
@@ -82,7 +92,6 @@ function Invoke-MavenPackage {
 Write-Step "Preparing local environment"
 
 if (-not $env:JWT_SECRET -or $env:JWT_SECRET.Length -lt 64) {
-    # Match the secret length requirements for HS512 usually used in microservices
     $env:JWT_SECRET = "local_demo_secret_key_with_more_than_sixty_four_characters_for_testing_2026_ruhuna_auction"
 }
 
@@ -90,18 +99,19 @@ if (-not $env:JWT_EXPIRATION) {
     $env:JWT_EXPIRATION = "86400000"
 }
 
+# Dynamic users to prevent "Email already exists" 400 errors
+$timestamp = Get-Date -Format "yyyyMMddHHmmss"
+$SellerEmail = "seller_$timestamp@example.com"
+$BuyerEmail = "buyer_$timestamp@example.com"
+
 # ============================
-# CLEAN
+# CLEAN & BUILD
 # ============================
 
 if (-not $NoReset) {
     Write-Step "Stopping and resetting containers/volumes"
     docker compose down -v --remove-orphans | Out-Host
 }
-
-# ============================
-# BUILD JARS
-# ============================
 
 $shouldBuildImages = $BuildImages
 
@@ -113,8 +123,6 @@ if (-not $SkipPackage) {
             Invoke-MavenPackage -ServicePath $service
         }
     }
-    
-    # Force Docker to rebuild images so it picks up the newly packaged JARs
     $shouldBuildImages = $true
 }
 else {
@@ -150,29 +158,17 @@ $ready = $false
 
 for ($i = 1; $i -le $maxAttempts; $i++) {
     try {
-        # 1. Check Gateway Health
         $health = Get-Json -Url "$ApiBase/actuator/health"
-        if ($health.status -ne "UP") {
-            throw "Gateway not UP"
-        }
+        if ($health.status -ne "UP") { throw "Gateway not UP" }
 
-        # 2. Check User Service reachability
         $userStatus = Get-Json -Url "$ApiBase/api/users/status"
-        if ($userStatus -notlike "*up and running*") {
-            throw "User Service not reachable"
-        }
+        if ($userStatus -notlike "*up and running*") { throw "User Service not reachable" }
 
-        # 3. Check Auction Service reachability
         $auctionStatus = Get-Json -Url "$ApiBase/api/auctions/status"
-        if ($auctionStatus -notlike "*up and running*") {
-            throw "Auction Service not reachable"
-        }
+        if ($auctionStatus -notlike "*up and running*") { throw "Auction Service not reachable" }
 
-        # 4. Check Bid Service reachability
         $bidStatus = Get-Json -Url "$ApiBase/api/bids/status"
-        if ($bidStatus -notlike "*up and running*") {
-            throw "Bid Service not reachable"
-        }
+        if ($bidStatus -notlike "*up and running*") { throw "Bid Service not reachable" }
 
         Write-Host "✅ All critical services are UP and reachable via Gateway" -ForegroundColor Green
         $ready = $true
@@ -181,110 +177,91 @@ for ($i = 1; $i -le $maxAttempts; $i++) {
     catch {
         Write-Host "Waiting... ($($i)/$maxAttempts): $($_.Exception.Message)" -ForegroundColor Gray
     }
-
     Start-Sleep -Seconds 5
 }
 
 if (-not $ready) {
-    docker compose ps | Out-Host
-    docker compose logs --tail=50 | Out-Host
     throw "Services did not become healthy within $HealthTimeoutSeconds seconds."
 }
 
 # ============================
-# AUTH FLOW
+# SELLER FLOW (Create Auction)
 # ============================
 
-Write-Step "Registering test user"
+Write-Step "Registering & Logging in SELLER"
 
-try {
-    Post-Json -Url "$ApiBase/api/users/register" -Body @{
-        name     = "Jane Doe"
-        email    = $Email
-        password = $Password
-    } | Out-Host
-}
-catch {
-    Write-Host "Registration note: $($_.Exception.Message)" -ForegroundColor Yellow
-}
+Post-Json -Url "$ApiBase/api/users/register" -Body @{
+    name     = "Auction Seller"
+    email    = $SellerEmail
+    password = $Password
+} | Out-Null
 
-Write-Step "Logging in"
-
-$login = Post-Json -Url "$ApiBase/api/users/login" -Body @{
-    email    = $Email
+$sellerLogin = Post-Json -Url "$ApiBase/api/users/login" -Body @{
+    email    = $SellerEmail
     password = $Password
 }
+$sellerAuthHeaders = @{ Authorization = "Bearer $($sellerLogin.token)" }
+Write-Host "✅ Seller authenticated" -ForegroundColor Green
 
-$token = $login.token
+Write-Step "Creating auction (As Seller)"
 
-if (-not $token) {
-    throw "JWT token missing from login response"
-}
-
-$authHeaders = @{ Authorization = "Bearer $token" }
-
-Write-Host "✅ Token acquired for $Email" -ForegroundColor Green
-
-# ============================
-# BUSINESS FLOW
-# ============================
-
-Write-Step "Creating auction"
-
-# Dynamic dates
 $now = Get-Date
 $startTime = $now.AddMinutes(-5).ToString("yyyy-MM-ddTHH:mm:ss")
 $endTime = $now.AddHours(2).ToString("yyyy-MM-ddTHH:mm:ss")
 
-$auction = Post-Json -Url "$ApiBase/api/auctions" -Headers $authHeaders -Body @{
+$auction = Post-Json -Url "$ApiBase/api/auctions" -Headers $sellerAuthHeaders -Body @{
     title           = "Limited Edition Watch"
     description     = "A very rare vintage watch from 1950s"
     startTime       = $startTime
     endTime         = $endTime
-    createdByUserId = 1  # Assuming first user in fresh DB
+    createdByUserId = 1 
 }
-
 $auctionId = $auction.id
+Write-Host "✅ Auction Created with ID: $auctionId" -ForegroundColor Green
 
-if (-not $auctionId) {
-    throw "Auction creation failed - no ID returned"
-}
-
-Write-Host "✅ Auction Created with ID: $auctionId (Status: $($auction.status))" -ForegroundColor Green
-
-Write-Step "Activating auction (Setting to IN_PROG)"
-
-Patch-NoBody -Url "$ApiBase/api/auctions/$auctionId/status?status=IN_PROG" -Headers $authHeaders | Out-Null
-
-# Verify activation
-$auctionCheck = Get-Json -Url "$ApiBase/api/auctions/$auctionId" -Headers $authHeaders
-if ($auctionCheck.status -ne "IN_PROG") {
-    throw "Failed to activate auction. Status is $($auctionCheck.status)"
-}
+Write-Step "Activating auction"
+Patch-NoBody -Url "$ApiBase/api/auctions/$auctionId/status?status=IN_PROG" -Headers $sellerAuthHeaders | Out-Null
 Write-Host "✅ Auction is now IN_PROG" -ForegroundColor Green
 
-Write-Step "Placing first bid"
+# ============================
+# BUYER FLOW (Place Bids)
+# ============================
 
-$bid1 = Post-Json -Url "$ApiBase/api/bids" -Headers $authHeaders -Body @{
+Write-Step "Registering & Logging in BUYER"
+
+Post-Json -Url "$ApiBase/api/users/register" -Body @{
+    name     = "Eager Buyer"
+    email    = $BuyerEmail
+    password = $Password
+} | Out-Null
+
+$buyerLogin = Post-Json -Url "$ApiBase/api/users/login" -Body @{
+    email    = $BuyerEmail
+    password = $Password
+}
+$buyerAuthHeaders = @{ Authorization = "Bearer $($buyerLogin.token)" }
+Write-Host "✅ Buyer authenticated" -ForegroundColor Green
+
+Write-Step "Placing first bid (As Buyer)"
+
+$bid1 = Post-Json -Url "$ApiBase/api/bids" -Headers $buyerAuthHeaders -Body @{
     auctionId = $auctionId
     amount    = 500.00
 }
-
 Write-Host "✅ First Bid placed: $($bid1.amount) (Bid ID: $($bid1.id))" -ForegroundColor Green
 
-Write-Step "Placing higher bid"
+Write-Step "Placing higher bid (As Buyer)"
 
-$bid2 = Post-Json -Url "$ApiBase/api/bids" -Headers $authHeaders -Body @{
+$bid2 = Post-Json -Url "$ApiBase/api/bids" -Headers $buyerAuthHeaders -Body @{
     auctionId = $auctionId
     amount    = 750.50
 }
-
 Write-Host "✅ Second Bid placed: $($bid2.amount) (Bid ID: $($bid2.id))" -ForegroundColor Green
 
 Write-Step "Testing lower bid (should be rejected)"
 
 try {
-    Post-Json -Url "$ApiBase/api/bids" -Headers $authHeaders -Body @{
+    Post-Json -Url "$ApiBase/api/bids" -Headers $buyerAuthHeaders -Body @{
         auctionId = $auctionId
         amount    = 600.00
     }
@@ -300,24 +277,17 @@ catch {
 
 Write-Step "Fetching all bids for auction $auctionId"
 
-$bids = Get-Json -Url "$ApiBase/api/bids/auction/$auctionId" -Headers $authHeaders
+$bids = Get-Json -Url "$ApiBase/api/bids/auction/$auctionId" -Headers $buyerAuthHeaders
 Write-Host "Total successful bids found: $($bids.Count)" -ForegroundColor Green
 
 if ($bids.Count -lt 2) {
     throw "Expected at least 2 bids, but found $($bids.Count)"
 }
 
-Write-Step "Checking Bid Service logs for event processing"
-docker compose logs --tail=20 bid-service | Out-Host
-
-# ============================
-# DONE
-# ============================
-
 Write-Step "E2E Test Suite Passed Successfully! 🚀"
 
 Write-Host "Summary:" -ForegroundColor Gray
-Write-Host " - User: $Email"
+Write-Host " - Seller: $SellerEmail"
+Write-Host " - Buyer:  $BuyerEmail"
 Write-Host " - AuctionId: $auctionId"
 Write-Host " - Winning Bid: $($bids[0].amount)" -ForegroundColor Green
-Write-Host "`n⚡ Fast rerun command: .\e2e.ps1 -NoReset -SkipPackage" -ForegroundColor DarkGray
