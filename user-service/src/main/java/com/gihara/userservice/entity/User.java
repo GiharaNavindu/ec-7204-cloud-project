@@ -27,6 +27,8 @@ import lombok.NoArgsConstructor;
 @Builder
 public class User {
 
+    public static final String Role = null;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long userId;

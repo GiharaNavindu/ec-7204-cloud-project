@@ -32,7 +32,7 @@ class JwtProviderTest {
     @Test
     void generateAndValidateToken_shouldWorkForValidToken() {
         JwtProvider jwtProvider = createValidProvider();
-        String token = jwtProvider.generateToken("jane@example.com");
+        String token = jwtProvider.generateToken("jane@example.com", null, null);
 
         assertTrue(jwtProvider.validateToken(token));
         assertEquals("jane@example.com", jwtProvider.getEmailFromToken(token));
