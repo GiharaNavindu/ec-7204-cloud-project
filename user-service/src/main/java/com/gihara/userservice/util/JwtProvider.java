@@ -34,11 +34,11 @@ public class JwtProvider {
         }
     }
 
-    public String generateToken(String email, UserRole role) {
+    public String generateToken(String email, Long userId, UserRole role) {
         SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes());
-        
         return Jwts.builder()
                 .setSubject(email)
+                .claim("userId", userId)
                 .claim("role", role.name())
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + jwtExpirationInMs))
