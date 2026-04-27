@@ -97,11 +97,15 @@ class UserServiceTest {
     @Test
     void login_shouldReturnTokenResponse_whenCredentialsAreValid() {
         UserLoginRequest request = new UserLoginRequest("jane@example.com", "plain-pass");
-        User user = User.builder().email("jane@example.com").password("encoded-pass").build();
+        User user = User.builder()
+            .email("jane@example.com")
+            .password("encoded-pass")
+            .userRole(UserRole.USER)
+            .build();
 
         when(userRepository.findByEmail("jane@example.com")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("plain-pass", "encoded-pass")).thenReturn(true);
-        when(jwtProvider.generateToken("jane@example.com", null, null)).thenReturn("jwt-token");
+        when(jwtProvider.generateToken("jane@example.com", null, UserRole.USER)).thenReturn("jwt-token");
         when(jwtProvider.getExpirationTime()).thenReturn(86400000L);
 
         LoginResponse response = userService.login(request);

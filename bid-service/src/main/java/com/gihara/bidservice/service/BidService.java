@@ -1,5 +1,15 @@
 package com.gihara.bidservice.service;
 
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+
 import com.gihara.bidservice.dto.AuctionResponse;
 import com.gihara.bidservice.dto.BidRequest;
 import com.gihara.bidservice.dto.BidResponse;
@@ -7,17 +17,9 @@ import com.gihara.bidservice.entity.Bid;
 import com.gihara.bidservice.entity.BidStatus;
 import com.gihara.bidservice.event.BidPlacedEvent;
 import com.gihara.bidservice.repository.BidRepository;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
-
-import java.math.BigDecimal;
-import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -33,6 +35,9 @@ public class BidService {
 
     @Value("${rabbitmq.routing-key}")
     private String routingKey;
+
+    @Value("${app.auction-service.url:http://localhost:8082}")
+    private String auctionServiceUrl;
 
     public BidResponse placeBid(BidRequest request, String userEmail, Long userId) {
 
@@ -102,7 +107,7 @@ public class BidService {
     private AuctionResponse getAuction(Long auctionId) {
         try {
             return restTemplate.getForObject(
-                "http://AUCTION-SERVICE/api/auctions/" + auctionId,  // Eureka resolves this
+                auctionServiceUrl + "/api/auctions/" + auctionId,
                 AuctionResponse.class
             );
         } catch (Exception e) {
