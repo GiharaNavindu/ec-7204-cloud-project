@@ -182,7 +182,6 @@
             try {
                 const data = await API.auth.login(email, password);
                 API.setToken(data.token);
-                API.setUser({ email: data.email, name: data.name || email.split('@')[0] });
                 window.location.href = "/auctions.html";
             } catch (err) {
                 UI.showToast(err.message || 'Login failed', 'error');
