@@ -14,15 +14,54 @@ services:
     ports:
       - "5433:5432"
 
-  discovery-server:
-    build:
-      context: ./discovery-server
-      dockerfile: Dockerfile
-    container_name: discovery-server
-    environment:
-      EUREKA_HOSTNAME: ${EUREKA_HOSTNAME}
+  mongodb:
+    image: mongo:6.0
+    container_name: auction-mongodb
     ports:
-      - "8761:8761"
+      - "27017:27017"
+
+  redis:
+    image: redis:7-alpine
+    container_name: auction-redis
+    ports:
+      - "6379:6379"
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: auction-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/alerts.yml:/etc/prometheus/rules/alerts.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      - api-gateway
+
+  grafana:
+    image: grafana/grafana-oss:11.5.1
+    container_name: auction-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: auction-rabbitmq
+    ports:
+      - "5672:5672"   # Message port
+      - "15672:15672" # Management UI port
 
   user-service:
     build:
@@ -30,15 +69,13 @@ services:
       dockerfile: Dockerfile
     container_name: user-service
     environment:
-      DB_URL: ${USER_DB_URL}
-      DB_USERNAME: ${POSTGRES_USER}
-      DB_PASSWORD: ${POSTGRES_PASSWORD}
-      EUREKA_SERVER_URL: ${EUREKA_SERVER_URL}
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_EXPIRATION: ${JWT_EXPIRATION}
+      DB_URL: jdbc:postgresql://postgres:5432/user_db
+      DB_USERNAME: admin
+      DB_PASSWORD: password
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
     depends_on:
       - postgres
-      - discovery-server
     ports:
       - "8081:8081"
 
@@ -66,14 +103,19 @@ services:
       dockerfile: Dockerfile
     container_name: api-gateway
     environment:
-      EUREKA_SERVER_URL: ${EUREKA_SERVER_URL}
-      JWT_SECRET: ${JWT_SECRET}
+      USER_SERVICE_URL: ${USER_SERVICE_URL:-http://user-service:8081}
+      AUCTION_SERVICE_URL: ${AUCTION_SERVICE_URL:-http://auction-service:8082}
+      BID_SERVICE_URL: ${BID_SERVICE_URL:-http://bid-service:8083}
+      PAYMENT_SERVICE_URL: ${PAYMENT_SERVICE_URL:-http://payment-service:8084}
+      NOTIFICATION_SERVICE_URL: ${NOTIFICATION_SERVICE_URL:-http://notification-service:8085}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      ALLOWED_ORIGIN_PATTERN: ${ALLOWED_ORIGIN_PATTERN:-http://localhost:*}
     depends_on:
-      - discovery-server
       - user-service
-      - auction-service
+      - redis
     ports:
       - "8080:8080"
 
-volumes:
-  postgres_data
+
