@@ -1,16 +1,17 @@
 # AuctionHub Startup & Test Script
-param(
-    [switch]$SkipPackage
-)
-
 $ErrorActionPreference = "Stop"
+
+function Write-Step {
+    param([string]$Message)
+    Write-Host "`n==> $Message" -ForegroundColor Cyan
+}
 
 function Invoke-MavenPackage {
     param([string]$ServicePath)
 
     Push-Location $ServicePath
     try {
-        Write-Host "    Packaging $ServicePath..." -ForegroundColor DarkCyan
+        Write-Host "Packaging in $ServicePath..." -ForegroundColor DarkCyan
 
         if (Test-Path ".\mvnw.cmd") {
             & ".\mvnw.cmd" clean package "-Dmaven.test.skip=true" | Out-Host
@@ -31,7 +32,7 @@ function Invoke-MavenPackage {
             throw "No runtime JAR found in '$ServicePath\target'."
         }
 
-        Write-Host "    ✅ Packaged -> $($jar.Name)" -ForegroundColor Green
+        Write-Host "✅ Packaged -> $($jar.Name)" -ForegroundColor Green
     }
     finally {
         Pop-Location
@@ -39,29 +40,27 @@ function Invoke-MavenPackage {
 }
 
 # 1. Environment Configuration
-Write-Host "`n==> Configuring Environment..." -ForegroundColor Cyan
+Write-Step "Configuring Environment..."
 if (-not $env:JWT_SECRET) {
     # Generate a secure key if not present
     $env:JWT_SECRET = "production_ready_secret_key_for_auction_hub_2026_ruhuna_cloud_system"
     Write-Host "    Generated JWT_SECRET" -ForegroundColor Gray
 }
 
-# 2. Package Java Applications
-if (-not $SkipPackage) {
-    Write-Host "`n==> Packaging local JARs for all services..." -ForegroundColor Cyan
-    foreach ($service in @("user-service", "auction-service", "bid-service", "api-gateway")) {
-        if (Test-Path $service) {
-            Invoke-MavenPackage -ServicePath $service
-        }
+# 2. Package JARs
+Write-Step "Packaging local JARs for all services"
+foreach ($service in @("user-service", "auction-service", "bid-service", "api-gateway")) {
+    if (Test-Path $service) {
+        Invoke-MavenPackage -ServicePath $service
     }
-}
-else {
-    Write-Host "`n==> ⚠️ Skipping Maven package step (-SkipPackage)" -ForegroundColor Yellow
+    else {
+        Write-Host "⚠️ Directory $service not found. Skipping." -ForegroundColor Yellow
+    }
 }
 
 # 3. Build and Start Services
-Write-Host "`n==> Building and Starting Services with Docker Compose..." -ForegroundColor Cyan
-Write-Host "    This may take a few minutes for the first run..." -ForegroundColor Gray
+Write-Step "Building and Starting Services with Docker Compose..."
+Write-Host "    This may take a few minutes..." -ForegroundColor Gray
 docker compose up -d --build
 
 if ($LASTEXITCODE -ne 0) {
@@ -70,7 +69,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 # 4. Wait for Health
-Write-Host "`n==> Waiting for services to initialize..." -ForegroundColor Cyan
+Write-Step "Waiting for services to initialize..."
 $maxAttempts = 36 # 3 minutes
 $ready = $false
 
@@ -102,7 +101,7 @@ if (-not $ready) {
 }
 
 # 5. Connectivity Test
-Write-Host "`n==> Testing API Gateway Connectivity..." -ForegroundColor Cyan
+Write-Step "Testing API Gateway Connectivity..."
 try {
     $userStatus = Invoke-RestMethod -Method Get -Uri "http://localhost:8080/api/users/status"
     Write-Host "✅ User Service: $userStatus" -ForegroundColor Green
