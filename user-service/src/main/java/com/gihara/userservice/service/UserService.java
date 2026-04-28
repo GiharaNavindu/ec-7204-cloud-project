@@ -1,11 +1,14 @@
 package com.gihara.userservice.service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.gihara.userservice.dto.LoginResponse;
+import com.gihara.userservice.dto.UserDTO;
 import com.gihara.userservice.dto.UserLoginRequest;
 import com.gihara.userservice.dto.UserRegistrationRequest;
 import com.gihara.userservice.entity.User;
@@ -69,4 +72,15 @@ public class UserService {
         user.setUserRole(newRole);
         userRepository.save(user);
     }
-}
+
+    public List<UserDTO> getAllUsers() {
+        return userRepository.findAll().stream()
+                .map(user -> new UserDTO(
+                        user.getId(),
+                        user.getUsername(),
+                        user.getEmail(),
+                        user.getUserRole()
+                ))
+                .toList();
+    }
+    }

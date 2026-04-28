@@ -2,6 +2,7 @@ package com.gihara.userservice.controller;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -13,10 +14,13 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.gihara.userservice.dto.LoginResponse;
+import com.gihara.userservice.dto.UserDTO;
 import com.gihara.userservice.dto.UserLoginRequest;
 import com.gihara.userservice.dto.UserRegistrationRequest;
 import com.gihara.userservice.enums.UserRole;
 import com.gihara.userservice.service.UserService;
+
+import java.util.List;
 
 import lombok.RequiredArgsConstructor;
 
@@ -54,4 +58,10 @@ public class UserController {
         userService.updateRole(id, newRole);
         return ResponseEntity.ok("User role updated successfully to " + newRole);
     }
+
+    @GetMapping
+    @PreAuthorize("hasAuthority('ADMIN')")
+    public ResponseEntity<List<UserDTO>> getAllUsers() {
+        return ResponseEntity.ok(userService.getAllUsers());
     }
+}
