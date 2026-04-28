@@ -50,6 +50,9 @@
                 Auction<span class="text-primary">Hub</span>
             </div>
             <div class="flex items-center gap-4">
+                <a id="admin-panel-link" href="/admin.html" class="hidden px-4 py-1.5 rounded-full border border-border text-sm text-gray-400 hover:text-white transition-all flex items-center gap-2">
+                    ⚙️ Admin Panel
+                </a>
                 <button id="create-auction-btn" onclick="openCreateModal()" class="hidden px-4 py-1.5 rounded-full bg-primary hover:bg-primary-dark text-white text-sm font-bold transition-all shadow-lg shadow-primary/20">
                     + Create Auction
                 </button>
@@ -153,6 +156,9 @@
             
             if (API.isTrusted()) {
                 document.getElementById('create-auction-btn').classList.remove('hidden');
+            }
+            if (user.role === 'ADMIN') {
+                document.getElementById('admin-panel-link').classList.remove('hidden');
             }
         }
 
