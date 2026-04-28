@@ -11,7 +11,10 @@ import com.gihara.userservice.dto.LoginResponse;
 import com.gihara.userservice.dto.UserDTO;
 import com.gihara.userservice.dto.UserLoginRequest;
 import com.gihara.userservice.dto.UserRegistrationRequest;
+import com.gihara.userservice.dto.TokenRefreshRequest;
+import com.gihara.userservice.dto.TokenRefreshResponse;
 import com.gihara.userservice.entity.User;
+import com.gihara.userservice.entity.RefreshToken;
 import com.gihara.userservice.enums.UserRole;
 import com.gihara.userservice.enums.UserStatus;
 import com.gihara.userservice.repository.UserRepository;
@@ -26,6 +29,7 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtProvider jwtProvider;
+    private final RefreshTokenService refreshTokenService;
 
     public String registerUser(UserRegistrationRequest request) {
         if (userRepository.existsByEmail(request.email())) {
@@ -55,14 +59,36 @@ public class UserService {
             throw new RuntimeException("Invalid credentials");
         }
 
-        String token = jwtProvider.generateToken(user.getEmail(), user.getUserId(), user.getUserRole());
+        String accessToken = jwtProvider.generateToken(user.getEmail(), user.getUserId(), user.getUserRole());
+        RefreshToken refreshToken = refreshTokenService.createRefreshToken(user.getUserId());
 
         return LoginResponse.builder()
                 .message("Login successful!")
                 .email(user.getEmail())
-                .token(token)
-                .expiresIn(jwtProvider.getExpirationTime())
+                .accessToken(accessToken)
+                .refreshToken(refreshToken.getToken())
+                .expiresIn(jwtProvider.getAccessTokenExpirationTime())
                 .build();
+    }
+
+    @Transactional
+    public TokenRefreshResponse refreshToken(TokenRefreshRequest request) {
+        String requestRefreshToken = request.getRefreshToken();
+
+        return refreshTokenService.findByToken(requestRefreshToken)
+                .map(refreshTokenService::verifyExpiration)
+                .map(RefreshToken::getUser)
+                .map(user -> {
+                    String accessToken = jwtProvider.generateToken(user.getEmail(), user.getUserId(), user.getUserRole());
+                    // Rotate refresh token (optional but recommended for security)
+                    RefreshToken newRefreshToken = refreshTokenService.createRefreshToken(user.getUserId());
+                    return TokenRefreshResponse.builder()
+                            .accessToken(accessToken)
+                            .refreshToken(newRefreshToken.getToken())
+                            .tokenType("Bearer")
+                            .build();
+                })
+                .orElseThrow(() -> new RuntimeException("Refresh token is not in database!"));
     }
 
     @Transactional

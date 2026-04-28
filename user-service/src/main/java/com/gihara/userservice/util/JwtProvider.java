@@ -22,13 +22,15 @@ public class JwtProvider {
     @Value("${app.jwt.secret}")
     private String jwtSecret;
 
-    // Expiration date in Millieseconds
-    @Value("${app.jwt.expiration}")
-    private long jwtExpirationInMs;
+    // Access token expiration (15 minutes)
+    private final long accessTokenExpirationInMs = 15 * 60 * 1000;
+
+    // Refresh token expiration (7 days)
+    private final long refreshTokenExpirationInMs = 7L * 24 * 60 * 60 * 1000;
 
     @PostConstruct
     void validateSecret() {
-        // Validation check - JWT secret must be 64 chara is a defined parameter
+        // Validation check - JWT secret must be 64 characters
         if (jwtSecret == null || jwtSecret.length() < 64) {
             throw new IllegalStateException("JWT secret must be set and at least 64 characters long");
         }
@@ -40,8 +42,9 @@ public class JwtProvider {
                 .setSubject(email)
                 .claim("userId", userId)
                 .claim("role", role.name())
+                .claim("roles", java.util.Collections.singletonList(role.name())) // Added for gateway compatibility
                 .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + jwtExpirationInMs))
+                .setExpiration(new Date(System.currentTimeMillis() + accessTokenExpirationInMs))
                 .signWith(key, SignatureAlgorithm.HS512)
                 .compact();
     }
@@ -81,7 +84,11 @@ public class JwtProvider {
         }
     }
 
-    public long getExpirationTime() {
-        return jwtExpirationInMs;
+    public long getAccessTokenExpirationTime() {
+        return accessTokenExpirationInMs;
+    }
+
+    public long getRefreshTokenExpirationTime() {
+        return refreshTokenExpirationInMs;
     }
 }

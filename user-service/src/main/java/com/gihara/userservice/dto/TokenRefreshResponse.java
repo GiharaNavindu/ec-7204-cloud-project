@@ -5,10 +5,8 @@ import lombok.Data;
 
 @Data
 @Builder
-public class LoginResponse {
-    private String message;
-    private String email;
+public class TokenRefreshResponse {
     private String accessToken;
     private String refreshToken;
-    private Long expiresIn;
+    private String tokenType;
 }

@@ -48,6 +48,11 @@ public class UserController {
         return ResponseEntity.status(HttpStatus.OK).body(response);
     }
 
+    @PostMapping("/refresh")
+    public ResponseEntity<com.gihara.userservice.dto.TokenRefreshResponse> refreshToken(@RequestBody com.gihara.userservice.dto.TokenRefreshRequest request) {
+        return ResponseEntity.ok(userService.refreshToken(request));
+    }
+
     @GetMapping("/protected")
     public ResponseEntity<String> protectedEndpoint(Authentication authentication) {
         return ResponseEntity.ok("Access granted for: " + authentication.getName());
