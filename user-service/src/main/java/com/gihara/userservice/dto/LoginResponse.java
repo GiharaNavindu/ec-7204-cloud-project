@@ -8,6 +8,7 @@ import lombok.Data;
 public class LoginResponse {
     private String message;
     private String email;
-    private String token;
+    private String accessToken;
+    private String refreshToken;
     private Long expiresIn;
 }

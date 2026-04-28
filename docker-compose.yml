@@ -1,11 +1,15 @@
 services:
   postgres:
-    image: postgres:15-alpine
+    image: postgres
     container_name: auction-postgres
     environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: user_db
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_DB: postgres
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - postgres_data:/var/lib/postgresql/data
     ports:
       - "5433:5432"
 
@@ -63,22 +67,85 @@ services:
       context: ./user-service
       dockerfile: Dockerfile
     container_name: user-service
+    restart: on-failure  # Added to handle fast-startup crashes
     environment:
       DB_URL: jdbc:postgresql://postgres:5432/user_db
       DB_USERNAME: admin
       DB_PASSWORD: password
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
       JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
+      GOOGLE_CLIENT_ID: 841352140356-ghgm9hr464kd5opehretkhb0t33g2113.apps.googleusercontent.com
+      GOOGLE_CLIENT_SECRET: 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
     depends_on:
       - postgres
     ports:
       - "8081:8081"
+
+  auction-service:
+    build:
+      context: ./auction-service
+      dockerfile: Dockerfile
+    container_name: auction-service
+    restart: on-failure  # Added to handle fast-startup crashes
+    environment:
+      DB_URL: ${AUCTION_DB_URL:-jdbc:postgresql://postgres:5432/auction_db}
+      DB_USERNAME: ${POSTGRES_USER:-admin}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      JWT_SECRET: ${JWT_SECRET:-change-me}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
+    depends_on:
+      - postgres
+    ports:
+      - "8082:8082"
+
+  bid-service:
+    build:
+      context: ./bid-service
+      dockerfile: Dockerfile
+    container_name: bid-service
+    restart: on-failure  # Added to handle fast-startup crashes
+    environment:
+      DB_URL: ${BID_DB_URL:-jdbc:postgresql://postgres:5432/bid_db}
+      DB_USERNAME: ${POSTGRES_USER:-admin}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      JWT_SECRET: ${JWT_SECRET:-change-me}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
+      AUCTION_SERVICE_URL: ${AUCTION_SERVICE_URL:-http://auction-service:8082}
+      RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq}
+      RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
+    depends_on:
+      - postgres
+      - rabbitmq
+      - auction-service
+    ports:
+      - "8083:8083"
+
+  notification-service:
+    build:
+      context: ./notification-service
+      dockerfile: Dockerfile
+    container_name: notification-service
+    restart: on-failure
+    environment:
+      NOTIFICATION_DB_URL: jdbc:postgresql://postgres:5432/notification_db
+      DB_USERNAME: ${POSTGRES_USER:-admin}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      JWT_SECRET: ${JWT_SECRET:-change-me}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
+      RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq}
+      RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
+    depends_on:
+      - postgres
+      - rabbitmq
+    ports:
+      - "8085:8085"
 
   api-gateway:
     build:
       context: ./api-gateway
       dockerfile: Dockerfile
     container_name: api-gateway
+    restart: on-failure  # Added to handle fast-startup crashes
     environment:
       USER_SERVICE_URL: ${USER_SERVICE_URL:-http://user-service:8081}
       AUCTION_SERVICE_URL: ${AUCTION_SERVICE_URL:-http://auction-service:8082}
@@ -91,8 +158,12 @@ services:
       ALLOWED_ORIGIN_PATTERN: ${ALLOWED_ORIGIN_PATTERN:-http://localhost:*}
     depends_on:
       - user-service
+      - auction-service
+      - bid-service
+      - notification-service
       - redis
     ports:
       - "8080:8080"
 
-
+volumes:
+  postgres_data:

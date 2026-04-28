@@ -6,6 +6,9 @@ server:
     max-swallow-size: 2MB
 
 spring:
+  web:
+    resources:
+      static-locations: classpath:/static/
   servlet:
     multipart:
       max-file-size: 2MB
@@ -24,7 +27,7 @@ spring:
             - id: user-service-auth-public
               uri: ${USER_SERVICE_URL:http://localhost:8081}
               predicates:
-                - Path=/api/users/register,/api/users/login,/api/users/status
+                - Path=/api/users/register,/api/users/login,/api/users/status,/api/users/refresh,/login/**,/oauth2/**
               filters:
                 - name: Retry
                   args:
@@ -149,10 +152,25 @@ app:
       - /api/users/register
       - /api/users/login
       - /api/users/status
+      - /api/users/refresh
+      - /login/**
+      - /oauth2/**
+      - /api/auctions/status
+      - /api/bids/status
+      - /api/notifications/status
       - /actuator/health/**
       - /actuator/info
       - /actuator/prometheus
       - /fallback/**
+      - /
+      - /index.html
+      - /auctions.html
+      - /bid.html
+      - /admin.html
+      - /js/**
+      - /css/**
+
+
     role-rules:
       - pattern: /api/users/admin/**
         roles: [ADMIN]
@@ -178,6 +196,10 @@ app:
         - /actuator/info
         - /actuator/prometheus
         - /fallback/**
+        - /
+        - /*.html
+        - /js/**
+        - /css/**
     cors:
       allowed-origin-patterns:
         - ${ALLOWED_ORIGIN_PATTERN:http://localhost:*}
@@ -211,7 +233,7 @@ resilience4j:
         minimumNumberOfCalls: 10
         permittedNumberOfCallsInHalfOpenState: 5
         failureRateThreshold: 50
-        slowCallDurationThreshold: 2s
+        slowCallDurationThreshold: 10s
         slowCallRateThreshold: 50
         waitDurationInOpenState: 30s
         automaticTransitionFromOpenToHalfOpenEnabled: true
@@ -230,7 +252,7 @@ resilience4j:
   timelimiter:
     configs:
       default:
-        timeoutDuration: 3s
+        timeoutDuration: 10s
     instances:
       userServiceCircuitBreaker:
         baseConfig: default
@@ -244,6 +266,14 @@ resilience4j:
         baseConfig: default
 
 management:
+  tracing:
+    sampling:
+      probability: 1.0
+    propagation:
+      type: w3c
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_URL:http://localhost:9411/api/v2/spans}
   endpoints:
     web:
       exposure:
@@ -267,6 +297,7 @@ management:
       service: gateway
 logging:
   pattern:
+    level: "%5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}]"
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} requestId=%X{requestId} - %msg%n"
 info:
   app:

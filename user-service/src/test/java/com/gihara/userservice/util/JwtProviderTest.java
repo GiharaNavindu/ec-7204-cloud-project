@@ -7,13 +7,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import com.gihara.userservice.enums.UserRole;
+
 class JwtProviderTest {
 
     private JwtProvider createValidProvider() {
         JwtProvider provider = new JwtProvider();
         ReflectionTestUtils.setField(provider, "jwtSecret",
                 "unit_test_secret_that_is_long_enough_for_hs512_and_more_than_64_chars_12345");
-        ReflectionTestUtils.setField(provider, "jwtExpirationInMs", 60000L);
+        ReflectionTestUtils.setField(provider, "accessTokenExpirationInMs", 60000L);
         ReflectionTestUtils.invokeMethod(provider, "validateSecret");
         return provider;
     }
@@ -32,10 +34,11 @@ class JwtProviderTest {
     @Test
     void generateAndValidateToken_shouldWorkForValidToken() {
         JwtProvider jwtProvider = createValidProvider();
-        String token = jwtProvider.generateToken("jane@example.com");
+        String token = jwtProvider.generateToken("jane@example.com", 42L, UserRole.USER);
 
         assertTrue(jwtProvider.validateToken(token));
         assertEquals("jane@example.com", jwtProvider.getEmailFromToken(token));
+        assertEquals("USER", jwtProvider.getRoleFromToken(token));
     }
 
     @Test
@@ -47,6 +50,6 @@ class JwtProviderTest {
     @Test
     void getExpirationTime_shouldReturnConfiguredValue() {
         JwtProvider jwtProvider = createValidProvider();
-        assertEquals(60000L, jwtProvider.getExpirationTime());
+        assertEquals(60000L, jwtProvider.getAccessTokenExpirationTime());
     }
 }
