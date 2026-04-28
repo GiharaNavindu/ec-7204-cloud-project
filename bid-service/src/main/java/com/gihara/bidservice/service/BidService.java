@@ -3,6 +3,7 @@ package com.gihara.bidservice.service;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -75,12 +76,17 @@ public class BidService {
         // Step 4 — publish event to RabbitMQ
         // auction-service will listen to this and update its highest bid
         BidPlacedEvent event = BidPlacedEvent.builder()
+                .eventId(UUID.randomUUID().toString())
                 .bidId(saved.getId())
                 .auctionId(saved.getAuctionId())
                 .userId(saved.getUserId())
                 .userEmail(saved.getUserEmail())
                 .amount(saved.getAmount())
                 .placedAt(saved.getPlacedAt())
+                .previousHighestBidId(getPreviousHighestBidId(currentHighest, userId))
+                .previousHighestBidderUserId(getPreviousHighestBidderUserId(currentHighest, userId))
+                .previousHighestBidderEmail(getPreviousHighestBidderEmail(currentHighest, userId))
+                .previousHighestAmount(getPreviousHighestAmount(currentHighest, userId))
                 .build();
 
         try {
@@ -130,5 +136,33 @@ public class BidService {
                 .status(bid.getStatus())
                 .placedAt(bid.getPlacedAt())
                 .build();
+    }
+
+    private Long getPreviousHighestBidId(Optional<Bid> currentHighest, Long newBidUserId) {
+        return currentHighest
+                .filter(existingBid -> !existingBid.getUserId().equals(newBidUserId))
+                .map(Bid::getId)
+                .orElse(null);
+    }
+
+    private Long getPreviousHighestBidderUserId(Optional<Bid> currentHighest, Long newBidUserId) {
+        return currentHighest
+                .filter(existingBid -> !existingBid.getUserId().equals(newBidUserId))
+                .map(Bid::getUserId)
+                .orElse(null);
+    }
+
+    private String getPreviousHighestBidderEmail(Optional<Bid> currentHighest, Long newBidUserId) {
+        return currentHighest
+                .filter(existingBid -> !existingBid.getUserId().equals(newBidUserId))
+                .map(Bid::getUserEmail)
+                .orElse(null);
+    }
+
+    private BigDecimal getPreviousHighestAmount(Optional<Bid> currentHighest, Long newBidUserId) {
+        return currentHighest
+                .filter(existingBid -> !existingBid.getUserId().equals(newBidUserId))
+                .map(Bid::getAmount)
+                .orElse(null);
     }
 }

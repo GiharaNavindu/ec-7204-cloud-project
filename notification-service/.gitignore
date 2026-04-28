@@ -1,0 +1,47 @@
+HELP.md
+
+# Maven build output
+target/
+.mvn/timing.properties
+
+# Keep nested source directories named target/build if they ever exist
+!**/src/main/**/target/
+!**/src/test/**/target/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+# Logs and crash dumps
+*.log
+hs_err_pid*
+replay_pid*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings/
+.springBeans
+.sts4-cache/
+
+### IntelliJ IDEA ###
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+
+### VS Code ###
+.vscode/

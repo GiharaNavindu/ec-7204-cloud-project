@@ -49,7 +49,7 @@ if (-not $env:JWT_SECRET) {
 
 # 2. Package JARs
 Write-Step "Packaging local JARs for all services"
-foreach ($service in @("user-service", "auction-service", "bid-service", "api-gateway")) {
+foreach ($service in @("user-service", "auction-service", "bid-service", "notification-service", "api-gateway")) {
     if (Test-Path $service) {
         Invoke-MavenPackage -ServicePath $service
     }
@@ -81,8 +81,9 @@ for ($i = 1; $i -le $maxAttempts; $i++) {
             $userStatus = Invoke-RestMethod -Method Get -Uri "http://localhost:8080/api/users/status" -ErrorAction Stop
             $auctionStatus = Invoke-RestMethod -Method Get -Uri "http://localhost:8080/api/auctions/status" -ErrorAction Stop
             $bidStatus = Invoke-RestMethod -Method Get -Uri "http://localhost:8080/api/bids/status" -ErrorAction Stop
+            $notificationStatus = Invoke-RestMethod -Method Get -Uri "http://localhost:8080/api/notifications/status" -ErrorAction Stop
             
-            if (($userStatus -match "up and running") -and ($auctionStatus -match "up and running") -and ($bidStatus -match "up and running")) {
+            if (($userStatus -match "up and running") -and ($auctionStatus -match "up and running") -and ($bidStatus -match "up and running") -and ($notificationStatus -match "up and running")) {
                 $ready = $true
                 break
             }
@@ -111,6 +112,9 @@ try {
 
     $bidStatus = Invoke-RestMethod -Method Get -Uri "http://localhost:8080/api/bids/status"
     Write-Host "✅ Bid Service: $bidStatus" -ForegroundColor Green
+
+    $notificationStatus = Invoke-RestMethod -Method Get -Uri "http://localhost:8080/api/notifications/status"
+    Write-Host "✅ Notification Service: $notificationStatus" -ForegroundColor Green
 }
 catch {
     Write-Host "❌ API connectivity failed." -ForegroundColor Red

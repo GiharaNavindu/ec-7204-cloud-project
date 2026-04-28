@@ -1,5 +1,8 @@
 package com.gihara.bidservice.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -26,7 +29,11 @@ public class RabbitMQConfig {
     // converts Java objects to JSON automatically when publishing
     @Bean
     public Jackson2JsonMessageConverter messageConverter() {
-        return new Jackson2JsonMessageConverter();
+        ObjectMapper objectMapper = JsonMapper.builder()
+                .findAndAddModules()
+                .build()
+                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        return new Jackson2JsonMessageConverter(objectMapper);
     }
 
     @Bean
