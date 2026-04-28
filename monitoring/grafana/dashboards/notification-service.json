@@ -1,0 +1,62 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "expr": "notifications_created_total",
+          "legendFormat": "Notifications Created",
+          "refId": "A"
+        },
+        {
+          "expr": "notifications_outbid_total",
+          "legendFormat": "Outbid Notifications",
+          "refId": "B"
+        },
+        {
+          "expr": "notifications_failure_total",
+          "legendFormat": "Notification Failures",
+          "refId": "C"
+        }
+      ],
+      "title": "Notification Service Metrics",
+      "type": "timeseries"
+    }
+  ],
+  "schemaVersion": 37,
+  "title": "Notification Service Metrics",
+  "version": 1
+}

@@ -7,6 +7,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Counter;
 
 import com.gihara.notificationservice.dto.CreateNotificationRequest;
 import com.gihara.notificationservice.dto.NotificationPageResponse;
@@ -27,62 +29,87 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
+
 public class NotificationService {
 
     private final NotificationRepository notificationRepository;
+    private final MeterRegistry meterRegistry;
+
+    private final Counter notificationCreatedCounter;
+    private final Counter outbidNotificationCounter;
+    private final Counter notificationFailureCounter;
+
+    public NotificationService(NotificationRepository notificationRepository, MeterRegistry meterRegistry) {
+        this.notificationRepository = notificationRepository;
+        this.meterRegistry = meterRegistry;
+        this.notificationCreatedCounter = meterRegistry.counter("notifications_created_total");
+        this.outbidNotificationCounter = meterRegistry.counter("notifications_outbid_total");
+        this.notificationFailureCounter = meterRegistry.counter("notifications_failure_total");
+    }
 
     @Transactional
     public NotificationResponse createNotification(CreateNotificationRequest request) {
-        if (request.getReferenceId() != null && notificationRepository.existsByReferenceId(request.getReferenceId())) {
-            throw new IllegalArgumentException("Notification reference already exists: " + request.getReferenceId());
+        try {
+            if (request.getReferenceId() != null && notificationRepository.existsByReferenceId(request.getReferenceId())) {
+                throw new IllegalArgumentException("Notification reference already exists: " + request.getReferenceId());
+            }
+
+            Notification notification = Notification.builder()
+                    .userId(request.getUserId())
+                    .type(request.getType())
+                    .title(request.getTitle())
+                    .message(request.getMessage())
+                    .channel(request.getChannel() != null ? request.getChannel() : NotificationChannel.IN_APP)
+                    .status(NotificationStatus.UNREAD)
+                    .auctionId(request.getAuctionId())
+                    .bidId(request.getBidId())
+                    .referenceId(request.getReferenceId())
+                    .metadata(request.getMetadata())
+                    .build();
+
+            notificationCreatedCounter.increment();
+            return mapToResponse(notificationRepository.save(notification));
+        } catch (Exception e) {
+            notificationFailureCounter.increment();
+            throw e;
         }
-
-        Notification notification = Notification.builder()
-                .userId(request.getUserId())
-                .type(request.getType())
-                .title(request.getTitle())
-                .message(request.getMessage())
-                .channel(request.getChannel() != null ? request.getChannel() : NotificationChannel.IN_APP)
-                .status(NotificationStatus.UNREAD)
-                .auctionId(request.getAuctionId())
-                .bidId(request.getBidId())
-                .referenceId(request.getReferenceId())
-                .metadata(request.getMetadata())
-                .build();
-
-        return mapToResponse(notificationRepository.save(notification));
     }
 
     @Transactional
     public void createOutbidNotification(BidPlacedEvent event) {
-        if (event.getPreviousHighestBidderUserId() == null || event.getPreviousHighestBidderUserId().equals(event.getUserId())) {
-            log.debug("Skipping outbid notification for bidId={} because there is no previous competing bidder", event.getBidId());
-            return;
+        try {
+            if (event.getPreviousHighestBidderUserId() == null || event.getPreviousHighestBidderUserId().equals(event.getUserId())) {
+                log.debug("Skipping outbid notification for bidId={} because there is no previous competing bidder", event.getBidId());
+                return;
+            }
+
+            String referenceId = buildOutbidReferenceId(event);
+            if (notificationRepository.existsByReferenceId(referenceId)) {
+                log.info("Skipping duplicate outbid notification for referenceId={}", referenceId);
+                return;
+            }
+
+            Notification notification = Notification.builder()
+                    .userId(event.getPreviousHighestBidderUserId())
+                    .type(NotificationType.BID_OUTBID)
+                    .title("You were outbid")
+                    .message("Another bidder placed a higher bid on auction #" + event.getAuctionId())
+                    .channel(NotificationChannel.IN_APP)
+                    .status(NotificationStatus.UNREAD)
+                    .auctionId(event.getAuctionId())
+                    .bidId(event.getBidId())
+                    .referenceId(referenceId)
+                    .metadata(buildOutbidMetadata(event))
+                    .build();
+
+            outbidNotificationCounter.increment();
+            notificationRepository.save(notification);
+            log.info("Created outbid notification for userId={} auctionId={} bidId={}",
+                    notification.getUserId(), notification.getAuctionId(), notification.getBidId());
+        } catch (Exception e) {
+            notificationFailureCounter.increment();
+            throw e;
         }
-
-        String referenceId = buildOutbidReferenceId(event);
-        if (notificationRepository.existsByReferenceId(referenceId)) {
-            log.info("Skipping duplicate outbid notification for referenceId={}", referenceId);
-            return;
-        }
-
-        Notification notification = Notification.builder()
-                .userId(event.getPreviousHighestBidderUserId())
-                .type(NotificationType.BID_OUTBID)
-                .title("You were outbid")
-                .message("Another bidder placed a higher bid on auction #" + event.getAuctionId())
-                .channel(NotificationChannel.IN_APP)
-                .status(NotificationStatus.UNREAD)
-                .auctionId(event.getAuctionId())
-                .bidId(event.getBidId())
-                .referenceId(referenceId)
-                .metadata(buildOutbidMetadata(event))
-                .build();
-
-        notificationRepository.save(notification);
-        log.info("Created outbid notification for userId={} auctionId={} bidId={}",
-                notification.getUserId(), notification.getAuctionId(), notification.getBidId());
     }
 
     @Transactional(readOnly = true)
