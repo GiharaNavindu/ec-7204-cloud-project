@@ -47,15 +47,15 @@ public class UserService {
         return "User registered successfully!";
     }
 
-    public LoginResponse login(LoginRequest request) {
-        User user = userRepository.findByEmail(request.getEmail())
+    public LoginResponse login(UserLoginRequest request) {
+        User user = userRepository.findByEmail(request.email())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+        if (!passwordEncoder.matches(request.password(), user.getPassword())) {
             throw new RuntimeException("Invalid credentials");
         }
 
-        String token = jwtProvider.generateToken(user.getEmail(), user.getId(), user.getUserRole().name());
+        String token = jwtProvider.generateToken(user.getEmail(), user.getUserId(), user.getUserRole());
 
         return LoginResponse.builder()
                 .message("Login successful!")
@@ -76,11 +76,11 @@ public class UserService {
     public List<UserDTO> getAllUsers() {
         return userRepository.findAll().stream()
                 .map(user -> new UserDTO(
-                        user.getId(),
+                        user.getUserId(),
                         user.getUsername(),
                         user.getEmail(),
                         user.getUserRole()
                 ))
                 .toList();
     }
-    }
+}
