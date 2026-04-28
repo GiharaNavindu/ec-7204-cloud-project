@@ -24,7 +24,6 @@ import com.gihara.notificationservice.exception.NotificationAccessDeniedExceptio
 import com.gihara.notificationservice.exception.NotificationNotFoundException;
 import com.gihara.notificationservice.repository.NotificationRepository;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
