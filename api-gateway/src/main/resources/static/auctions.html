@@ -50,7 +50,7 @@
                 Auction<span class="text-primary">Hub</span>
             </div>
             <div class="flex items-center gap-4">
-                <button onclick="openCreateModal()" class="px-4 py-1.5 rounded-full bg-primary hover:bg-primary-dark text-white text-sm font-bold transition-all shadow-lg shadow-primary/20">
+                <button id="create-auction-btn" onclick="openCreateModal()" class="hidden px-4 py-1.5 rounded-full bg-primary hover:bg-primary-dark text-white text-sm font-bold transition-all shadow-lg shadow-primary/20">
                     + Create Auction
                 </button>
                 <div id="user-display" class="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface-light border border-border text-sm text-gray-400">
@@ -150,6 +150,10 @@
         if (user) {
             document.getElementById('username').textContent = user.name || user.email;
             document.getElementById('user-display').classList.remove('hidden');
+            
+            if (API.isTrusted()) {
+                document.getElementById('create-auction-btn').classList.remove('hidden');
+            }
         }
 
         let allAuctions = [];

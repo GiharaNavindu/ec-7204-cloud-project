@@ -105,7 +105,7 @@
             </div>
 
             <!-- Right: Bidding Panel -->
-            <div class="space-y-6">
+            <div class="space-y-6" id="bidding-panel">
                 <!-- Countdown -->
                 <div class="bg-surface border border-border rounded-3xl p-8 text-center">
                     <div class="text-[10px] text-gray-500 uppercase tracking-widest mb-6 font-bold">Time Remaining</div>
@@ -191,6 +191,13 @@
             updatePriceUI(currentBidVal);
             document.getElementById('starting-bid').textContent = UI.formatCurrency(a.startingBid || a.startPrice || 0);
             document.getElementById('total-bids').textContent = a.totalBids || 0;
+
+            // Self-bidding prevention & RBAC
+            const user = API.getUser();
+            if (user && user.userId === a.createdByUserId) {
+                document.getElementById('bidding-panel').classList.add('hidden');
+                UI.showToast('You created this auction. Self-bidding is disabled.', 'info');
+            }
 
             const isEnded = a.status === 'ENDED' || a.status === 'CLOSED';
             if (isEnded) {
