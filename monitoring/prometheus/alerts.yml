@@ -3,7 +3,7 @@ groups:
     interval: 30s
     rules:
       - alert: ApiGatewayHigh5xxRate
-        expr: sum(rate(http_server_requests_seconds_count{application="api-gateway",status=~"5.."}[5m])) > 0.5
+        expr: sum(rate(http_server_requests_seconds_count{job="api-gateway",status=~"5.."}[5m])) > 0.5
         for: 2m
         labels:
           severity: warning
@@ -13,7 +13,7 @@ groups:
           description: "API Gateway is producing more than 0.5 5xx responses/sec over 5m."
 
       - alert: ApiGatewayRateLimitSpike
-        expr: sum(rate(http_server_requests_seconds_count{application="api-gateway",status="429"}[5m])) > 0.5
+        expr: sum(rate(http_server_requests_seconds_count{job="api-gateway",status="429"}[5m])) > 0.5
         for: 1m
         labels:
           severity: warning
@@ -22,21 +22,160 @@ groups:
           summary: "High throttling rate on API Gateway"
           description: "Gateway is returning many 429 responses. Check client load and limits."
 
-      - alert: ApiGatewayReadinessDown
+      - alert: ApiGatewayHighLatency
+        expr: histogram_quantile(0.95, http_server_requests_seconds_bucket{job="api-gateway"}) > 2
+        for: 5m
+        labels:
+          severity: warning
+          service: api-gateway
+        annotations:
+          summary: "High latency on API Gateway"
+          description: "API Gateway p95 response time is above 2 seconds."
+
+      - alert: ApiGatewayDown
         expr: up{job="api-gateway"} == 0
         for: 2m
         labels:
           severity: critical
           service: api-gateway
         annotations:
-          summary: "API Gateway readiness probe failing"
-          description: "Prometheus cannot scrape the API Gateway metrics endpoint continuously."
+          summary: "API Gateway is DOWN"
+          description: "API Gateway metrics endpoint is unreachable."
+
+  - name: user-service-alerts
+    interval: 30s
+    rules:
+      - alert: UserServiceHigh5xxRate
+        expr: sum(rate(http_server_requests_seconds_count{job="user-service",status=~"5.."}[5m])) > 0.3
+        for: 3m
+        labels:
+          severity: warning
+          service: user-service
+        annotations:
+          summary: "High error rate on User Service"
+          description: "User Service is producing more than 0.3 5xx responses/sec over 5m."
+
+      - alert: UserServiceDatabaseConnectionPoolHigh
+        expr: hikaricp_connections_active{job="user-service"} > 18
+        for: 5m
+        labels:
+          severity: warning
+          service: user-service
+        annotations:
+          summary: "User Service database connection pool high"
+          description: "Active connections exceed 18. Connection pool may be exhausted soon."
+
+      - alert: UserServiceAuthFailureRate
+        expr: sum(rate(http_server_requests_seconds_count{job="user-service",uri=~"/api/users/(login|register)",status="401|403"}[5m])) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          service: user-service
+        annotations:
+          summary: "High auth failure rate on User Service"
+          description: "User Service auth endpoints have high failure rate."
+
+      - alert: UserServiceDown
+        expr: up{job="user-service"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: user-service
+        annotations:
+          summary: "User Service is DOWN"
+          description: "User Service metrics endpoint is unreachable."
+
+  - name: auction-service-alerts
+    interval: 30s
+    rules:
+      - alert: AuctionServiceHigh5xxRate
+        expr: sum(rate(http_server_requests_seconds_count{job="auction-service",status=~"5.."}[5m])) > 0.3
+        for: 3m
+        labels:
+          severity: warning
+          service: auction-service
+        annotations:
+          summary: "High error rate on Auction Service"
+          description: "Auction Service is producing more than 0.3 5xx responses/sec over 5m."
+
+      - alert: AuctionServiceDatabaseConnectionPoolHigh
+        expr: hikaricp_connections_active{job="auction-service"} > 18
+        for: 5m
+        labels:
+          severity: warning
+          service: auction-service
+        annotations:
+          summary: "Auction Service database connection pool high"
+          description: "Active connections exceed 18. Connection pool may be exhausted soon."
+
+      - alert: AuctionServiceHighLatency
+        expr: histogram_quantile(0.95, http_server_requests_seconds_bucket{job="auction-service"}) > 2
+        for: 5m
+        labels:
+          severity: warning
+          service: auction-service
+        annotations:
+          summary: "High latency on Auction Service"
+          description: "Auction Service p95 response time is above 2 seconds."
+
+      - alert: AuctionServiceDown
+        expr: up{job="auction-service"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: auction-service
+        annotations:
+          summary: "Auction Service is DOWN"
+          description: "Auction Service metrics endpoint is unreachable."
+
+  - name: bid-service-alerts
+    interval: 30s
+    rules:
+      - alert: BidServiceHigh5xxRate
+        expr: sum(rate(http_server_requests_seconds_count{job="bid-service",status=~"5.."}[5m])) > 0.3
+        for: 3m
+        labels:
+          severity: warning
+          service: bid-service
+        annotations:
+          summary: "High error rate on Bid Service"
+          description: "Bid Service is producing more than 0.3 5xx responses/sec over 5m."
+
+      - alert: BidServiceDatabaseConnectionPoolHigh
+        expr: hikaricp_connections_active{job="bid-service"} > 18
+        for: 5m
+        labels:
+          severity: warning
+          service: bid-service
+        annotations:
+          summary: "Bid Service database connection pool high"
+          description: "Active connections exceed 18. Connection pool may be exhausted soon."
+
+      - alert: BidServiceQueueLag
+        expr: increase(rabbitmq_queue_messages_unacked_total{queue="bid.queue"}[5m]) > 50
+        for: 5m
+        labels:
+          severity: warning
+          service: bid-service
+        annotations:
+          summary: "Bid Service RabbitMQ queue has high lag"
+          description: "Bid queue has more than 50 unacked messages. Processing may be slow."
+
+      - alert: BidServiceDown
+        expr: up{job="bid-service"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: bid-service
+        annotations:
+          summary: "Bid Service is DOWN"
+          description: "Bid Service metrics endpoint is unreachable."
 
   - name: notification-service-alerts
     interval: 30s
     rules:
-      - alert: NotificationQueueHighLag
-        expr: increase(rabbitmq_queue_messages_unacked_total{queue="notifications.queue"}[5m]) > 100
+      - alert: NotificationServiceQueueHighLag
+        expr: increase(rabbitmq_queue_messages_unacked_total{queue="notification.queue"}[5m]) > 100
         for: 5m
         labels:
           severity: warning
@@ -45,8 +184,8 @@ groups:
           summary: "Notification queue has high lag"
           description: "Notification service queue has more than 100 unacked messages. Event processing may be slow."
 
-      - alert: NotificationHighFailureRate
-        expr: sum(rate(http_server_requests_seconds_count{application="notification-service",status=~"5.."}[5m])) > 0.2
+      - alert: NotificationServiceHighFailureRate
+        expr: sum(rate(http_server_requests_seconds_count{job="notification-service",status=~"5.."}[5m])) > 0.2
         for: 5m
         labels:
           severity: warning
@@ -55,6 +194,16 @@ groups:
           summary: "High error rate on Notification Service"
           description: "Notification Service is returning more than 0.2 5xx responses/sec over 5m."
 
+      - alert: NotificationServiceHighLatency
+        expr: histogram_quantile(0.95, http_server_requests_seconds_bucket{job="notification-service"}) > 1.5
+        for: 5m
+        labels:
+          severity: warning
+          service: notification-service
+        annotations:
+          summary: "High latency on Notification Service"
+          description: "Notification Service p95 response time is above 1.5 seconds."
+
       - alert: NotificationServiceDown
         expr: up{job="notification-service"} == 0
         for: 2m
@@ -62,5 +211,35 @@ groups:
           severity: critical
           service: notification-service
         annotations:
-          summary: "Notification Service readiness probe failing"
-          description: "Prometheus cannot scrape the Notification Service metrics endpoint."
+          summary: "Notification Service is DOWN"
+          description: "Notification Service metrics endpoint is unreachable."
+
+  - name: infrastructure-alerts
+    interval: 30s
+    rules:
+      - alert: HighJVMMemoryUsage
+        expr: (jvm_memory_used_bytes{area="heap"} / jvm_memory_max_bytes{area="heap"}) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High JVM heap memory usage"
+          description: "JVM heap memory usage is above 85% for {{ $labels.instance }}"
+
+      - alert: HighGarbageCollectionTime
+        expr: rate(jvm_gc_pause_seconds_sum[5m]) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High garbage collection time"
+          description: "GC pause time is excessive on {{ $labels.instance }}"
+
+      - alert: PrometheusScrapeFailed
+        expr: up == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Prometheus scrape failed"
+          description: "Prometheus cannot scrape {{ $labels.job }} on {{ $labels.instance }}"
