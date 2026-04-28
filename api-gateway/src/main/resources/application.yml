@@ -261,6 +261,14 @@ resilience4j:
         baseConfig: default
 
 management:
+  tracing:
+    sampling:
+      probability: 1.0
+    propagation:
+      type: w3c
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_URL:http://localhost:9411/api/v2/spans}
   endpoints:
     web:
       exposure:
@@ -284,6 +292,7 @@ management:
       service: gateway
 logging:
   pattern:
+    level: "%5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}]"
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} requestId=%X{requestId} - %msg%n"
 info:
   app:
