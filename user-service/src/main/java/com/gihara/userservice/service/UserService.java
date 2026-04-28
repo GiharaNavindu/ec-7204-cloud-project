@@ -44,21 +44,29 @@ public class UserService {
         return "User registered successfully!";
     }
 
-    public LoginResponse login(UserLoginRequest request) {
-        User user = userRepository.findByEmail(request.email())
-                .orElseThrow(() -> new RuntimeException("User not found with email: " + request.email()));
+    public LoginResponse login(LoginRequest request) {
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new RuntimeException("User not found"));
 
-        if (!passwordEncoder.matches(request.password(), user.getPassword())) {
-            throw new RuntimeException("Invalid password!");
+        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+            throw new RuntimeException("Invalid credentials");
         }
 
-        String token = jwtProvider.generateToken(user.getEmail(), user.getUserId(), user.getUserRole());
-        
+        String token = jwtProvider.generateToken(user.getEmail(), user.getId(), user.getUserRole().name());
+
         return LoginResponse.builder()
                 .message("Login successful!")
                 .email(user.getEmail())
                 .token(token)
                 .expiresIn(jwtProvider.getExpirationTime())
                 .build();
+    }
+
+    @Transactional
+    public void updateRole(Long userId, UserRole newRole) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found with ID: " + userId));
+        user.setUserRole(newRole);
+        userRepository.save(user);
     }
 }
