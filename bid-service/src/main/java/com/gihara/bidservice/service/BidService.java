@@ -1,29 +1,29 @@
 package com.gihara.bidservice.service;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.gihara.bidservice.entity.OutboxEvent;
-import com.gihara.bidservice.repository.OutboxRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gihara.bidservice.dto.AuctionResponse;
 import com.gihara.bidservice.dto.BidRequest;
 import com.gihara.bidservice.dto.BidResponse;
 import com.gihara.bidservice.entity.Bid;
 import com.gihara.bidservice.entity.BidStatus;
+import com.gihara.bidservice.entity.OutboxEvent;
 import com.gihara.bidservice.event.BidPlacedEvent;
 import com.gihara.bidservice.repository.BidRepository;
+import com.gihara.bidservice.repository.OutboxRepository;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-
-import java.time.LocalDateTime;
 
 @Slf4j
 @Service

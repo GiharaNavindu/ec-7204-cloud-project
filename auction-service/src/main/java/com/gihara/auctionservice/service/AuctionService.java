@@ -1,16 +1,23 @@
 package com.gihara.auctionservice.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.gihara.auctionservice.entity.OutboxEvent;
-import com.gihara.auctionservice.repository.OutboxRepository;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gihara.auctionservice.dto.AuctionRequest;
+import com.gihara.auctionservice.dto.AuctionResponse;
+import com.gihara.auctionservice.entity.Auction;
+import com.gihara.auctionservice.entity.AuctionStatus;
+import com.gihara.auctionservice.entity.OutboxEvent;
+import com.gihara.auctionservice.repository.AuctionRepository;
+import com.gihara.auctionservice.repository.OutboxRepository;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Service
