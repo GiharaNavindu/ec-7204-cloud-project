@@ -109,6 +109,8 @@ services:
       JWT_SECRET: ${JWT_SECRET:-change-me}
       JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
       AUCTION_SERVICE_URL: ${AUCTION_SERVICE_URL:-http://auction-service:8082}
+      RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq}
+      RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
     depends_on:
       - postgres
       - rabbitmq
