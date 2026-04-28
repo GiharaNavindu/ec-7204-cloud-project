@@ -165,6 +165,7 @@ app:
       - /index.html
       - /auctions.html
       - /bid.html
+      - /admin.html
       - /js/**
       - /css/**
 
