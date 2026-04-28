@@ -157,6 +157,7 @@ app:
       - /oauth2/**
       - /api/auctions/status
       - /api/bids/status
+      - /api/notifications/status
       - /actuator/health/**
       - /actuator/info
       - /actuator/prometheus

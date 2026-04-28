@@ -111,12 +111,34 @@ services:
       JWT_SECRET: ${JWT_SECRET:-change-me}
       JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
       AUCTION_SERVICE_URL: ${AUCTION_SERVICE_URL:-http://auction-service:8082}
+      RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq}
+      RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
     depends_on:
       - postgres
       - rabbitmq
       - auction-service
     ports:
       - "8083:8083"
+
+  notification-service:
+    build:
+      context: ./notification-service
+      dockerfile: Dockerfile
+    container_name: notification-service
+    restart: on-failure
+    environment:
+      NOTIFICATION_DB_URL: jdbc:postgresql://postgres:5432/notification_db
+      DB_USERNAME: ${POSTGRES_USER:-admin}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      JWT_SECRET: ${JWT_SECRET:-change-me}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
+      RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq}
+      RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
+    depends_on:
+      - postgres
+      - rabbitmq
+    ports:
+      - "8085:8085"
 
   api-gateway:
     build:
@@ -138,6 +160,7 @@ services:
       - user-service
       - auction-service
       - bid-service
+      - notification-service
       - redis
     ports:
       - "8080:8080"
