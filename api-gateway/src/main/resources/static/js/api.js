@@ -182,6 +182,13 @@ const API = {
         }),
         getHistory: (auctionId) => API.request(`/api/bids/auction/${auctionId}`),
         getUserBids: (userId) => API.request(`/api/bids/user/${userId}`)
+    },
+
+    users: {
+        getAll: () => API.request('/api/users'),
+        updateRole: (id, role) => API.request(`/api/users/${id}/role?newRole=${role}`, {
+            method: 'PATCH'
+        })
     }
 };
 
