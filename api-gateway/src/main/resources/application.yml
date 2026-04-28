@@ -27,7 +27,7 @@ spring:
             - id: user-service-auth-public
               uri: ${USER_SERVICE_URL:http://localhost:8081}
               predicates:
-                - Path=/api/users/register,/api/users/login,/api/users/status,/api/users/refresh
+                - Path=/api/users/register,/api/users/login,/api/users/status,/api/users/refresh,/login/**,/oauth2/**
               filters:
                 - name: Retry
                   args:
@@ -153,6 +153,8 @@ app:
       - /api/users/login
       - /api/users/status
       - /api/users/refresh
+      - /login/**
+      - /oauth2/**
       - /api/auctions/status
       - /api/bids/status
       - /actuator/health/**

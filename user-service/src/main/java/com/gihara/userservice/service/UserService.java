@@ -109,4 +109,30 @@ public class UserService {
                 ))
                 .toList();
     }
+
+    @Transactional
+    public LoginResponse processOAuthPostLogin(String email, String name) {
+        User user = userRepository.findByEmail(email).orElseGet(() -> {
+            User newUser = User.builder()
+                    .username(name)
+                    .email(email)
+                    .password(passwordEncoder.encode(java.util.UUID.randomUUID().toString())) // Random password for OAuth users
+                    .userRole(UserRole.USER)
+                    .userStatus(UserStatus.ACTIVE)
+                    .createdAt(LocalDateTime.now())
+                    .build();
+            return userRepository.save(newUser);
+        });
+
+        String accessToken = jwtProvider.generateToken(user.getEmail(), user.getUserId(), user.getUserRole());
+        RefreshToken refreshToken = refreshTokenService.createRefreshToken(user.getUserId());
+
+        return LoginResponse.builder()
+                .message("OAuth2 Login successful!")
+                .email(user.getEmail())
+                .accessToken(accessToken)
+                .refreshToken(refreshToken.getToken())
+                .expiresIn(jwtProvider.getAccessTokenExpirationTime())
+                .build();
+    }
 }
