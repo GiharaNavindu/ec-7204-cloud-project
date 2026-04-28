@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AuctionHub Admin — User Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        'primary': '#f97316',
+                        'primary-dark': '#ea580c',
+                        'surface': '#13131a',
+                        'surface-light': '#1a1a24',
+                        'background': '#0a0a0f',
+                        'border': '#1e1e2e',
+                    },
+                    fontFamily: {
+                        'syne': ['Syne', 'sans-serif'],
+                        'sans': ['DM Sans', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer base {
+            body { @apply bg-background text-gray-100 font-sans; }
+            h1, h2, h3 { @apply font-syne font-bold; }
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <!-- Navbar -->
+    <nav class="sticky top-0 z-50 bg-surface/80 backdrop-blur-md border-b border-border px-6 py-4">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-8">
+                <div class="text-xl font-extrabold font-syne tracking-tight">
+                    Auction<span class="text-primary">Hub</span> <span class="text-xs uppercase tracking-widest text-gray-500 ml-2">Admin</span>
+                </div>
+                <div class="hidden md:flex items-center gap-6 text-sm font-medium text-gray-400">
+                    <a href="/auctions.html" class="hover:text-white transition-colors">Marketplace</a>
+                    <a href="/admin.html" class="text-primary border-b-2 border-primary pb-1">User Management</a>
+                </div>
+            </div>
+            <div class="flex items-center gap-4">
+                <div id="user-display" class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface-light border border-border text-sm text-gray-400">
+                    <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                    <span id="username">Admin</span>
+                </div>
+                <button onclick="API.auth.logout()" class="px-4 py-1.5 rounded-full border border-border text-sm text-gray-400 hover:text-red-500 hover:border-red-500/50 transition-all">
+                    Sign out
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-6 py-12">
+        <div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
+            <div>
+                <h1 class="text-4xl">User Directory</h1>
+                <p class="text-gray-500 mt-2">Manage platform users and access levels.</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <button onclick="loadUsers()" class="px-4 py-2 rounded-xl bg-surface-light border border-border text-sm font-bold hover:bg-border transition-all flex items-center gap-2">
+                    <span id="refresh-icon">🔄</span> Refresh Data
+                </button>
+            </div>
+        </div>
+
+        <!-- Users Table Container -->
+        <div class="bg-surface border border-border rounded-3xl overflow-hidden shadow-2xl">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-surface-light/50 border-b border-border">
+                            <th class="px-6 py-4 text-[10px] font-bold text-gray-500 uppercase tracking-widest">User ID</th>
+                            <th class="px-6 py-4 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Identity</th>
+                            <th class="px-6 py-4 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Current Role</th>
+                            <th class="px-6 py-4 text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right">Role Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="user-table-body" class="divide-y divide-border">
+                        <!-- Users will be injected here -->
+                        <tr>
+                            <td colspan="4" class="px-6 py-12 text-center">
+                                <div class="w-8 h-8 border-2 border-primary/20 border-t-primary rounded-full animate-spin mx-auto mb-4"></div>
+                                <p class="text-gray-500">Loading user directory...</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <script src="/js/api.js"></script>
+    <script>
+        // Strict Admin RBAC Guard
+        (function enforceAdmin() {
+            const user = API.getUser();
+            if (!API.isAuthenticated() || !user || user.role !== 'ADMIN') {
+                console.error("Access denied: Not an administrator");
+                window.location.href = "/index.html";
+            }
+        })();
+
+        const user = API.getUser();
+        if (user) {
+            document.getElementById('username').textContent = user.name || user.email;
+        }
+
+        async function loadUsers() {
+            const tbody = document.getElementById('user-table-body');
+            const refreshBtn = document.getElementById('refresh-icon');
+            refreshBtn.classList.add('animate-spin');
+
+            try {
+                const users = await API.users.getAll();
+                renderUsers(users);
+            } catch (err) {
+                UI.showToast(err.message || "Failed to fetch users", 'error');
+                tbody.innerHTML = `<tr><td colspan="4" class="px-6 py-12 text-center text-red-500 font-medium">Error loading users. Please check API connectivity.</td></tr>`;
+            } finally {
+                setTimeout(() => refreshBtn.classList.remove('animate-spin'), 500);
+            }
+        }
+
+        function renderUsers(users) {
+            const tbody = document.getElementById('user-table-body');
+            
+            if (!users || users.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="px-6 py-12 text-center text-gray-500 italic">No users found in the directory.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = users.map(u => {
+                const isCurrentAdmin = u.role === 'ADMIN';
+                const roleBadgeClass = u.role === 'ADMIN' 
+                    ? 'bg-red-500/10 border-red-500/20 text-red-500' 
+                    : (u.role === 'TRUSTED_USER' ? 'bg-primary/10 border-primary/20 text-primary' : 'bg-gray-500/10 border-gray-500/20 text-gray-400');
+
+                return `
+                    <tr class="hover:bg-white/[0.02] transition-colors group">
+                        <td class="px-6 py-5 font-mono text-xs text-gray-500">#${u.id}</td>
+                        <td class="px-6 py-5">
+                            <div class="font-bold text-gray-200">${u.name || 'Anonymous'}</div>
+                            <div class="text-xs text-gray-500 mt-0.5">${u.email}</div>
+                        </td>
+                        <td class="px-6 py-5">
+                            <span class="px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border ${roleBadgeClass}">
+                                ${u.role}
+                            </span>
+                        </td>
+                        <td class="px-6 py-5 text-right">
+                            <div class="flex items-center justify-end gap-2">
+                                ${!isCurrentAdmin ? `
+                                    <button onclick="handleRoleToggle(${u.id}, '${u.role === 'TRUSTED_USER' ? 'USER' : 'TRUSTED_USER'}')" 
+                                            class="px-3 py-1.5 rounded-lg border border-border text-[10px] font-bold uppercase tracking-widest hover:bg-primary hover:border-primary hover:text-white transition-all">
+                                        ${u.role === 'TRUSTED_USER' ? '📉 Demote to User' : '📈 Promote to Trusted'}
+                                    </button>
+                                ` : '<span class="text-[10px] text-gray-600 italic">Admin protected</span>'}
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function handleRoleToggle(userId, newRole) {
+            const actionText = newRole === 'TRUSTED_USER' ? 'promote' : 'demote';
+            if (!confirm(`Are you sure you want to ${actionText} this user to ${newRole}?`)) return;
+
+            try {
+                await API.users.updateRole(userId, newRole);
+                UI.showToast(`User successfully updated to ${newRole}`, 'success');
+                loadUsers(); // Reload the list
+            } catch (err) {
+                UI.showToast(err.message || "Failed to update user role", 'error');
+            }
+        }
+
+        // Initial Load
+        loadUsers();
+    </script>
+</body>
+</html>

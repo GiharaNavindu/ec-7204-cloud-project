@@ -50,7 +50,10 @@
                 Auction<span class="text-primary">Hub</span>
             </div>
             <div class="flex items-center gap-4">
-                <button onclick="openCreateModal()" class="px-4 py-1.5 rounded-full bg-primary hover:bg-primary-dark text-white text-sm font-bold transition-all shadow-lg shadow-primary/20">
+                <a id="admin-panel-link" href="/admin.html" class="hidden px-4 py-1.5 rounded-full border border-border text-sm text-gray-400 hover:text-white transition-all flex items-center gap-2">
+                    ⚙️ Admin Panel
+                </a>
+                <button id="create-auction-btn" onclick="openCreateModal()" class="hidden px-4 py-1.5 rounded-full bg-primary hover:bg-primary-dark text-white text-sm font-bold transition-all shadow-lg shadow-primary/20">
                     + Create Auction
                 </button>
                 <div id="user-display" class="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface-light border border-border text-sm text-gray-400">
@@ -150,10 +153,17 @@
         if (user) {
             document.getElementById('username').textContent = user.name || user.email;
             document.getElementById('user-display').classList.remove('hidden');
+            
+            if (API.isTrusted()) {
+                document.getElementById('create-auction-btn').classList.remove('hidden');
+            }
+            if (user.role === 'ADMIN') {
+                document.getElementById('admin-panel-link').classList.remove('hidden');
+            }
         }
 
         let allAuctions = [];
-        let allBids = {}; // Cache for highest bids
+        let auctionSummaries = {}; // Cache for highest bid and winner details
 
         async function loadAuctions() {
             try {
@@ -163,8 +173,8 @@
                 document.getElementById('auction-count').textContent = 
                     `${allAuctions.length} auction${allAuctions.length !== 1 ? 's' : ''} available now`;
                 
-                // Fetch highest bids for each auction to display correctly
-                await fetchHighestBids(allAuctions);
+                // Fetch bid summaries for each auction so ended auctions can show a winner
+                await fetchAuctionSummaries(allAuctions);
                 
                 renderAuctions(allAuctions);
             } catch (err) {
@@ -177,19 +187,33 @@
             }
         }
 
-        async function fetchHighestBids(auctions) {
-            const activeAuctions = auctions.filter(a => a.status !== 'ENDED' && a.status !== 'CLOSED');
-            // Use Promise.all to fetch bids concurrently for a snappy UI
-            await Promise.all(activeAuctions.map(async (a) => {
+        async function fetchAuctionSummaries(auctions) {
+            await Promise.allSettled(auctions.map(async (auction) => {
+                const auctionKey = auction.id || auction.auctionId;
                 try {
-                    const bids = await API.bids.getHistory(a.id || a.auctionId);
-                    if (bids && bids.length > 0) {
-                        // Assuming the API returns latest first or we sort it
-                        const highest = Math.max(...bids.map(b => b.amount));
-                        allBids[a.id || a.auctionId] = highest;
-                    }
+                    const bids = await API.bids.getHistory(auctionKey);
+                    const normalizedBids = (bids || [])
+                        .slice()
+                        .sort((left, right) => {
+                            const amountDiff = Number(right.amount || right.bidAmount || 0) - Number(left.amount || left.bidAmount || 0);
+                            if (amountDiff !== 0) return amountDiff;
+                            return new Date(right.placedAt || right.timestamp || 0) - new Date(left.placedAt || left.timestamp || 0);
+                        });
+
+                    const winner = normalizedBids[0] || null;
+                    auctionSummaries[auctionKey] = {
+                        currentBid: winner ? Number(winner.amount || winner.bidAmount || 0) : 0,
+                        totalBids: normalizedBids.length,
+                        winnerEmail: winner ? (winner.userEmail || winner.bidder || null) : null,
+                        winnerUserId: winner ? (winner.userId || null) : null
+                    };
                 } catch (e) {
-                    // Ignore bid fetch errors (e.g. bid service down)
+                    auctionSummaries[auctionKey] = {
+                        currentBid: 0,
+                        totalBids: 0,
+                        winnerEmail: null,
+                        winnerUserId: null
+                    };
                 }
             }));
         }
@@ -211,6 +235,8 @@
                 const status = a.status || 'OPENED';
                 const isEnded = status === 'ENDED' || status === 'CLOSED';
                 const timeRemaining = UI.getTimeRemaining(a.endTime || a.endDate);
+                const auctionKey = a.id || a.auctionId;
+                const summary = auctionSummaries[auctionKey] || {};
                 
                 let statusBadge = '';
                 if (status === 'IN_PROG') {
@@ -222,7 +248,10 @@
                 }
 
                 // Get derived bid
-                const currentBid = allBids[a.id || a.auctionId] || 0;
+                const currentBid = summary.currentBid || 0;
+                const winnerLine = isEnded && summary.winnerEmail
+                    ? `<div class="mt-3 text-xs text-gray-400">Winner: <span class="text-gray-200 font-medium">${summary.winnerEmail}</span>${summary.winnerUserId ? ` <span class="text-gray-500">(#${summary.winnerUserId})</span>` : ''}</div>`
+                    : '';
                 
                 // Owner actions
                 const isOwner = user && user.userId === a.createdByUserId;
@@ -242,6 +271,7 @@
                             <div>
                                 <div class="text-[10px] text-gray-500 uppercase tracking-widest mb-1">Highest Bid</div>
                                 <div class="text-xl font-bold text-primary font-syne">${currentBid > 0 ? UI.formatCurrency(currentBid) : '<span class="text-sm text-gray-500 font-sans">No bids</span>'}</div>
+                                ${winnerLine}
                             </div>
                             <div class="text-right">
                                 <div class="text-[10px] text-gray-500 uppercase tracking-widest mb-1">Ends In</div>
@@ -275,7 +305,12 @@
             if (status === 'all') {
                 renderAuctions(allAuctions);
             } else {
-                const filtered = allAuctions.filter(a => (a.status || 'OPENED') === status);
+                const filtered = allAuctions.filter(a => {
+                    const auctionStatus = a.status || 'OPENED';
+                    if (status === 'ENDED') return auctionStatus === 'ENDED' || auctionStatus === 'CLOSED';
+                    if (status === 'OPENED') return auctionStatus === 'OPENED';
+                    return auctionStatus === status;
+                });
                 renderAuctions(filtered);
             }
         }
@@ -364,7 +399,11 @@
                 { id: 2, title: 'MacBook Pro M3 Max', description: 'Brand new, sealed. 128GB RAM, 8TB SSD.', status: 'IN_PROG', endTime: new Date(Date.now() + 5000000).toISOString() },
                 { id: 3, title: 'Original Banksy Print', description: 'Certified original from private collection.', status: 'OPENED', endTime: new Date(Date.now() + 80000000).toISOString() }
             ];
-            allBids = { 1: 12500, 2: 5200 }; // Fake bids
+            auctionSummaries = {
+                1: { currentBid: 12500, totalBids: 11, winnerEmail: 'alice@example.com', winnerUserId: 42 },
+                2: { currentBid: 5200, totalBids: 6, winnerEmail: 'bob@example.com', winnerUserId: 17 },
+                3: { currentBid: 0, totalBids: 0, winnerEmail: null, winnerUserId: null }
+            };
             renderAuctions(allAuctions);
             UI.showToast('Auction service unreachable. Showing demo data.', 'error');
         }

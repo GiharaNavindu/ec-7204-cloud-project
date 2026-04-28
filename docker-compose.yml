@@ -74,6 +74,8 @@ services:
       DB_PASSWORD: password
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
       JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
+      GOOGLE_CLIENT_ID: 841352140356-ghgm9hr464kd5opehretkhb0t33g2113.apps.googleusercontent.com
+      GOOGLE_CLIENT_SECRET: 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
     depends_on:
       - postgres
     ports:

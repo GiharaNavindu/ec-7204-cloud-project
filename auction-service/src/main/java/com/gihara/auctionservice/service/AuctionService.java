@@ -1,22 +1,34 @@
 package com.gihara.auctionservice.service;
 
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.Collectors;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gihara.auctionservice.dto.AuctionRequest;
 import com.gihara.auctionservice.dto.AuctionResponse;
 import com.gihara.auctionservice.entity.Auction;
 import com.gihara.auctionservice.entity.AuctionStatus;
+import com.gihara.auctionservice.entity.OutboxEvent;
 import com.gihara.auctionservice.repository.AuctionRepository;
+import com.gihara.auctionservice.repository.OutboxRepository;
+
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
+import lombok.extern.slf4j.Slf4j;
 
-import java.util.List;
-import java.util.stream.Collectors;
-
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuctionService {
 
     private final AuctionRepository auctionRepository;
+    private final OutboxRepository outboxRepository;
+    private final ObjectMapper objectMapper;
 
+    @Transactional
     public AuctionResponse createAuction(AuctionRequest request) {
         Auction auction = Auction.builder()
                 .title(request.getTitle())
@@ -51,11 +63,42 @@ public class AuctionService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional
     public AuctionResponse updateStatus(Long id, AuctionStatus newStatus) {
         Auction auction = auctionRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Auction not found: " + id));
+        
         auction.setStatus(newStatus);
-        return mapToResponse(auctionRepository.save(auction));
+        Auction saved = auctionRepository.save(auction);
+
+        if (newStatus == AuctionStatus.CLOSED) {
+            saveOutboxEvent(saved, "AUCTION_CLOSED");
+        } else if (newStatus == AuctionStatus.IN_PROG) {
+            saveOutboxEvent(saved, "AUCTION_STARTED");
+        }
+
+        return mapToResponse(saved);
+    }
+
+    private void saveOutboxEvent(Auction auction, String type) {
+        try {
+            AuctionResponse response = mapToResponse(auction);
+            String payload = objectMapper.writeValueAsString(response);
+
+            OutboxEvent outboxEvent = OutboxEvent.builder()
+                    .timestamp(LocalDateTime.now())
+                    .aggregateId(auction.getId().toString())
+                    .type(type)
+                    .payload(payload)
+                    .processed(false)
+                    .build();
+
+            outboxRepository.save(outboxEvent);
+            log.info("Saved {} event to outbox for auction {}", type, auction.getId());
+        } catch (Exception e) {
+            log.error("Failed to save {} event to outbox: {}", type, e.getMessage());
+            throw new RuntimeException("Database error occurred while closing auction");
+        }
     }
 
     private AuctionResponse mapToResponse(Auction auction) {

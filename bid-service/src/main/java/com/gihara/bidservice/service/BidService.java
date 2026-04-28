@@ -1,23 +1,27 @@
 package com.gihara.bidservice.service;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gihara.bidservice.dto.AuctionResponse;
 import com.gihara.bidservice.dto.BidRequest;
 import com.gihara.bidservice.dto.BidResponse;
 import com.gihara.bidservice.entity.Bid;
 import com.gihara.bidservice.entity.BidStatus;
+import com.gihara.bidservice.entity.OutboxEvent;
 import com.gihara.bidservice.event.BidPlacedEvent;
 import com.gihara.bidservice.repository.BidRepository;
+import com.gihara.bidservice.repository.OutboxRepository;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,18 +32,14 @@ import lombok.extern.slf4j.Slf4j;
 public class BidService {
 
     private final BidRepository bidRepository;
-    private final RestTemplate restTemplate;       // calls auction-service
-    private final RabbitTemplate rabbitTemplate;   // publishes events
-
-    @Value("${rabbitmq.exchange}")
-    private String exchange;
-
-    @Value("${rabbitmq.routing-key}")
-    private String routingKey;
+    private final RestTemplate restTemplate;
+    private final OutboxRepository outboxRepository;
+    private final ObjectMapper objectMapper;
 
     @Value("${app.auction-service.url:http://localhost:8082}")
     private String auctionServiceUrl;
 
+    @Transactional
     public BidResponse placeBid(BidRequest request, String userEmail, Long userId) {
 
         // Step 1 — check auction exists and is IN_PROG via HTTP
@@ -73,8 +73,7 @@ public class BidService {
         Bid saved = bidRepository.save(bid);
         log.info("Bid placed: user={} auction={} amount={}", userEmail, request.getAuctionId(), request.getAmount());
 
-        // Step 4 — publish event to RabbitMQ
-        // auction-service will listen to this and update its highest bid
+        // Step 4 — Save event to Outbox
         BidPlacedEvent event = BidPlacedEvent.builder()
                 .eventId(UUID.randomUUID().toString())
                 .bidId(saved.getId())
@@ -90,11 +89,20 @@ public class BidService {
                 .build();
 
         try {
-            rabbitTemplate.convertAndSend(exchange, routingKey, event);
-            log.info("BidPlacedEvent published to RabbitMQ for auction={}", request.getAuctionId());
+            String payload = objectMapper.writeValueAsString(event);
+            OutboxEvent outboxEvent = OutboxEvent.builder()
+                    .timestamp(LocalDateTime.now())
+                    .aggregateId(saved.getId().toString())
+                    .type("BID_PLACED")
+                    .payload(payload)
+                    .processed(false)
+                    .build();
+            
+            outboxRepository.save(outboxEvent);
+            log.info("BidPlacedEvent saved to outbox for auction={}", request.getAuctionId());
         } catch (Exception ex) {
-            // Do not fail bid placement because event publishing is eventual-consistency infrastructure.
-            log.warn("Bid persisted but event publish failed for auction={}: {}", request.getAuctionId(), ex.getMessage());
+            log.error("Failed to save BidPlacedEvent to outbox: {}", ex.getMessage());
+            throw new RuntimeException("Could not process bid due to internal error");
         }
 
         return mapToResponse(saved);

@@ -21,6 +21,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import com.gihara.userservice.dto.LoginResponse;
 import com.gihara.userservice.dto.UserLoginRequest;
 import com.gihara.userservice.dto.UserRegistrationRequest;
+import com.gihara.userservice.entity.RefreshToken;
 import com.gihara.userservice.entity.User;
 import com.gihara.userservice.enums.UserRole;
 import com.gihara.userservice.repository.UserRepository;
@@ -37,6 +38,9 @@ class UserServiceTest {
 
     @Mock
     private JwtProvider jwtProvider;
+
+    @Mock
+    private RefreshTokenService refreshTokenService;
 
     @InjectMocks
     private UserService userService;
@@ -78,7 +82,7 @@ class UserServiceTest {
 
         RuntimeException ex = assertThrows(RuntimeException.class, () -> userService.login(request));
 
-        assertTrue(ex.getMessage().contains("User not found with email"));
+        assertEquals("User not found", ex.getMessage());
     }
 
     @Test
@@ -91,28 +95,32 @@ class UserServiceTest {
 
         RuntimeException ex = assertThrows(RuntimeException.class, () -> userService.login(request));
 
-        assertEquals("Invalid password!", ex.getMessage());
+        assertEquals("Invalid credentials", ex.getMessage());
     }
 
     @Test
     void login_shouldReturnTokenResponse_whenCredentialsAreValid() {
         UserLoginRequest request = new UserLoginRequest("jane@example.com", "plain-pass");
         User user = User.builder()
+            .userId(1L)
             .email("jane@example.com")
             .password("encoded-pass")
             .userRole(UserRole.USER)
             .build();
+        RefreshToken refreshToken = RefreshToken.builder().token("refresh-token").build();
 
         when(userRepository.findByEmail("jane@example.com")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("plain-pass", "encoded-pass")).thenReturn(true);
-        when(jwtProvider.generateToken("jane@example.com", null, UserRole.USER)).thenReturn("jwt-token");
-        when(jwtProvider.getExpirationTime()).thenReturn(86400000L);
+        when(jwtProvider.generateToken("jane@example.com", 1L, UserRole.USER)).thenReturn("jwt-token");
+        when(jwtProvider.getAccessTokenExpirationTime()).thenReturn(86400000L);
+        when(refreshTokenService.createRefreshToken(1L)).thenReturn(refreshToken);
 
         LoginResponse response = userService.login(request);
 
         assertEquals("Login successful!", response.getMessage());
         assertEquals("jane@example.com", response.getEmail());
-        assertEquals("jwt-token", response.getToken());
+        assertEquals("jwt-token", response.getAccessToken());
+        assertEquals("refresh-token", response.getRefreshToken());
         assertEquals(86400000L, response.getExpiresIn());
     }
 }

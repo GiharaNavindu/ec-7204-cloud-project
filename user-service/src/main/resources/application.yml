@@ -1,5 +1,6 @@
 server:
   port: 8081
+
 spring:
   application:
     name: user-service
@@ -11,8 +12,35 @@ spring:
     hibernate:
       ddl-auto: update
     show-sql: false
+  # Added OAuth2 configuration here under the existing 'spring:' key
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:841352140356-ghgm9hr464kd5opehretkhb0t33g2113.apps.googleusercontent.com}
+            client-secret: ${GOOGLE_CLIENT_SECRET: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}
+            scope: email, profile
 
 app:
   jwt:
     secret: ${JWT_SECRET}
     expiration: ${JWT_EXPIRATION:86400000}
+
+management:
+  tracing:
+    sampling:
+      probability: 1.0
+    propagation:
+      type: w3c
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_URL:http://localhost:9411/api/v2/spans}
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+logging:
+  pattern:
+    level: "%5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}]"
