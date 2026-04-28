@@ -72,6 +72,11 @@ const API = {
     },
 
     isAuthenticated: () => !!localStorage.getItem('token'),
+    
+    isTrusted: () => {
+        const user = API.getUser();
+        return user && (user.role === 'TRUSTED_USER' || user.role === 'ADMIN');
+    },
 
     /**
      * Core request wrapper that automatically injects the JWT and handles
