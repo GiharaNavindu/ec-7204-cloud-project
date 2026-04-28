@@ -6,9 +6,9 @@ spring:
     name: bid-service
 
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/bid_db}
-    username: ${DB_USERNAME:admin}
-    password: ${DB_PASSWORD:password}
+    url: ${DB_URL:}
+    username: ${DB_USERNAME:}
+    password: ${DB_PASSWORD:}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -20,17 +20,17 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
   rabbitmq:
-    host: ${RABBITMQ_HOST:localhost}
+    host: ${RABBITMQ_HOST:}
     port: 5672
-    username: ${RABBITMQ_USERNAME:guest}
-    password: ${RABBITMQ_PASSWORD:guest}
+    username: ${RABBITMQ_USERNAME:}
+    password: ${RABBITMQ_PASSWORD:}
 
 app:
   jwt:
-    secret: ${JWT_SECRET}
+    secret: ${JWT_SECRET:}
     expiration: ${JWT_EXPIRATION:86400000}
   auction-service:
-    url: ${AUCTION_SERVICE_URL:http://localhost:8082}
+    url: ${AUCTION_SERVICE_URL:}
 
 management:
   tracing:
@@ -40,7 +40,7 @@ management:
       type: w3c
   zipkin:
     tracing:
-      endpoint: ${ZIPKIN_URL:http://localhost:9411/api/v2/spans}
+      endpoint: ${ZIPKIN_URL:}
   endpoints:
     web:
       exposure:

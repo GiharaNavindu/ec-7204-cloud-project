@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres
+    image: postgres:16-alpine
     container_name: auction-postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-admin}
@@ -64,18 +64,19 @@ services:
 
   user-service:
     build:
-      context: ./user-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: user-service/Dockerfile
     container_name: user-service
-    restart: on-failure  # Added to handle fast-startup crashes
+    restart: on-failure
     environment:
       DB_URL: ${USER_DB_URL:?USER_DB_URL must be set}
-      DB_USERNAME: admin
+      DB_USERNAME: ${POSTGRES_USER:-admin}
       DB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
       JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?GOOGLE_CLIENT_ID must be set}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?GOOGLE_CLIENT_SECRET must be set}
+      ZIPKIN_URL: ${ZIPKIN_URL:-http://zipkin:9411/api/v2/spans}
     depends_on:
       - postgres
     ports:
@@ -83,16 +84,17 @@ services:
 
   auction-service:
     build:
-      context: ./auction-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: auction-service/Dockerfile
     container_name: auction-service
-    restart: on-failure  # Added to handle fast-startup crashes
+    restart: on-failure
     environment:
       DB_URL: ${AUCTION_DB_URL:?AUCTION_DB_URL must be set}
       DB_USERNAME: ${POSTGRES_USER:-admin}
       DB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
       JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
+      ZIPKIN_URL: ${ZIPKIN_URL:-http://zipkin:9411/api/v2/spans}
     depends_on:
       - postgres
     ports:
@@ -100,10 +102,10 @@ services:
 
   bid-service:
     build:
-      context: ./bid-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: bid-service/Dockerfile
     container_name: bid-service
-    restart: on-failure  # Added to handle fast-startup crashes
+    restart: on-failure
     environment:
       DB_URL: ${BID_DB_URL:?BID_DB_URL must be set}
       DB_USERNAME: ${POSTGRES_USER:-admin}
@@ -113,6 +115,9 @@ services:
       AUCTION_SERVICE_URL: ${AUCTION_SERVICE_URL:-http://auction-service:8082}
       RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq}
       RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:-guest}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
+      ZIPKIN_URL: ${ZIPKIN_URL:-http://zipkin:9411/api/v2/spans}
     depends_on:
       - postgres
       - rabbitmq
@@ -122,8 +127,8 @@ services:
 
   notification-service:
     build:
-      context: ./notification-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: notification-service/Dockerfile
     container_name: notification-service
     restart: on-failure
     environment:
@@ -134,6 +139,9 @@ services:
       JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
       RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq}
       RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:-guest}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
+      ZIPKIN_URL: ${ZIPKIN_URL:-http://zipkin:9411/api/v2/spans}
     depends_on:
       - postgres
       - rabbitmq
@@ -142,10 +150,10 @@ services:
 
   api-gateway:
     build:
-      context: ./api-gateway
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: api-gateway/Dockerfile
     container_name: api-gateway
-    restart: on-failure  # Added to handle fast-startup crashes
+    restart: on-failure
     environment:
       USER_SERVICE_URL: ${USER_SERVICE_URL:-http://user-service:8081}
       AUCTION_SERVICE_URL: ${AUCTION_SERVICE_URL:-http://auction-service:8082}
@@ -156,6 +164,7 @@ services:
       REDIS_HOST: ${REDIS_HOST:-redis}
       REDIS_PORT: ${REDIS_PORT:-6379}
       ALLOWED_ORIGIN_PATTERN: ${ALLOWED_ORIGIN_PATTERN:-http://localhost:*}
+      ZIPKIN_URL: ${ZIPKIN_URL:-http://zipkin:9411/api/v2/spans}
     depends_on:
       - user-service
       - auction-service

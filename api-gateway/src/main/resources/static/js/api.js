@@ -3,7 +3,21 @@
  * Handles authentication, requests to the Spring Cloud API Gateway, and JWT extraction.
  */
 
-const BASE_URL = window.location.origin;
+function resolveBaseUrl() {
+    const configuredBaseUrl = window.__API_BASE_URL__ || window.localStorage.getItem('apiBaseUrl');
+    if (configuredBaseUrl) {
+        return configuredBaseUrl.replace(/\/$/, '');
+    }
+
+    const isLocalHost = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
+    if (window.location.protocol === 'file:' || isLocalHost) {
+        return 'http://localhost:8080';
+    }
+
+    return window.location.origin;
+}
+
+const BASE_URL = resolveBaseUrl();
 
 /**
  * Robust JWT decoder that handles Unicode and edge cases.

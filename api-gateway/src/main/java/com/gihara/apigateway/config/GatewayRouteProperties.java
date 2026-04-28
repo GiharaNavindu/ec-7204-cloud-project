@@ -1,11 +1,11 @@
 package com.gihara.apigateway.config;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.util.AntPathMatcher;
 import org.springframework.util.StringUtils;
-
-import java.util.ArrayList;
-import java.util.List;
 
 @ConfigurationProperties(prefix = "app.gateway")
 public class GatewayRouteProperties {
@@ -161,7 +161,7 @@ public class GatewayRouteProperties {
     }
 
     public static class Cors {
-        private List<String> allowedOriginPatterns = new ArrayList<>(List.of("http://localhost:*"));
+        private List<String> allowedOriginPatterns = new ArrayList<>();
         private List<String> allowedMethods = new ArrayList<>(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         private List<String> allowedHeaders = new ArrayList<>(List.of("Authorization", "Content-Type", "X-Request-Id", "X-Forwarded-For"));
         private List<String> exposedHeaders = new ArrayList<>(List.of("X-Request-Id", "X-Rate-Limit-Limit", "X-Rate-Limit-Remaining", "X-Rate-Limit-Reset", "Retry-After"));

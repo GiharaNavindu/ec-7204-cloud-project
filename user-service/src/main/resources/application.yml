@@ -5,9 +5,9 @@ spring:
   application:
     name: user-service
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5433/user_db}
-    username: ${DB_USERNAME:admin}
-    password: ${DB_PASSWORD:password}
+    url: ${DB_URL:}
+    username: ${DB_USERNAME:}
+    password: ${DB_PASSWORD:}
   jpa:
     hibernate:
       ddl-auto: update
@@ -18,14 +18,16 @@ spring:
       client:
         registration:
           google:
-            client-id: ${GOOGLE_CLIENT_ID:841352140356-ghgm9hr464kd5opehretkhb0t33g2113.apps.googleusercontent.com}
-            client-secret: ${GOOGLE_CLIENT_SECRET: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}
+            client-id: ${GOOGLE_CLIENT_ID:}
+            client-secret: ${GOOGLE_CLIENT_SECRET:}
             scope: email, profile
 
 app:
   jwt:
-    secret: ${JWT_SECRET}
+    secret: ${JWT_SECRET:}
     expiration: ${JWT_EXPIRATION:86400000}
+  oauth2:
+    redirect-uri: ${APP_OAUTH2_REDIRECT_URI:/index.html}
 
 management:
   tracing:
@@ -35,7 +37,7 @@ management:
       type: w3c
   zipkin:
     tracing:
-      endpoint: ${ZIPKIN_URL:http://localhost:9411/api/v2/spans}
+      endpoint: ${ZIPKIN_URL:}
   endpoints:
     web:
       exposure:

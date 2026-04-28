@@ -1,335 +1,292 @@
-targetScope = 'resourceGroup'
+param(
+[string]$ResourceGroupName = 'rg-ruhuna-auction',
+[string]$Location = 'eastus',
+[string]$AcrName = 'acruhunaauction',
+[string]$PostgreSqlAdminUsername = 'pgadmin',
+[switch]$PromptSecrets
+)
 
-@description('Azure region for all resources.')
-param location string = resourceGroup().location
+$ErrorActionPreference = 'Stop'
+Set-StrictMode -Version Latest
 
-@description('Name of the Azure Container Apps managed environment.')
-param containerAppsEnvName string = 'aca-auction-env'
-
-@description('Name of the Log Analytics workspace used by Container Apps.')
-param logAnalyticsWorkspaceName string = 'law-aca-auction'
-
-@description('Name of the virtual network used by the Container Apps environment.')
-param vnetName string = 'vnet-aca-auction'
-
-@description('CIDR block for the virtual network.')
-param vnetAddressPrefix string = '10.42.0.0/16'
-
-@description('Subnet name delegated to Azure Container Apps.')
-param infrastructureSubnetName string = 'snet-aca-infra'
-
-@description('Subnet CIDR block delegated to Azure Container Apps. Use /23 or larger.')
-param infrastructureSubnetPrefix string = '10.42.0.0/23'
-
-@description('Azure Container Registry login server, for example myregistry.azurecr.io.')
-param acrLoginServer string
-
-@description('Azure Container Registry username.')
-param acrUsername string
-
-@secure()
-@description('Azure Container Registry password.')
-param acrPassword string
-
-@description('Image tag to deploy for api-gateway and user-service.')
-param imageTag string = 'latest'
-
-@description('Container App name for api-gateway.')
-param apiGatewayAppName string = 'api-gateway'
-
-@description('Container App name for user-service.')
-param userServiceAppName string = 'user-service'
-
-@description('Container App name for discovery-server, if you reintroduce it later.')
-param discoveryServerAppName string = 'discovery-server'
-
-@description('Spring Cloud Gateway container port.')
-param apiGatewayPort int = 8080
-
-@description('User Service container port.')
-param userServicePort int = 8081
-
-@description('Discovery server container port, kept as an optional toggle for future use.')
-param discoveryServerPort int = 8761
-
-@description('If true, also deploy the discovery-server Container App. Defaults to false because the current codebase no longer includes discovery-server.')
-param deployDiscoveryServer bool = false
-
-@description('Discovery-server image name and tag. Leave empty unless deployDiscoveryServer is true and you have reintroduced the service.')
-param discoveryServerImage string = ''
-
-@secure()
-@description('JWT secret shared by api-gateway and user-service. Must be at least 64 characters for HS512.')
-param jwtSecret string
-
-@description('JWT expiration in milliseconds.')
-param jwtExpiration string = '86400000'
-
-@description('JDBC URL for the user service database. Point this at your managed PostgreSQL instance.')
-param dbUrl string
-
-@description('Database username used by user-service.')
-param dbUsername string
-
-@secure()
-@description('Database password used by user-service.')
-param dbPassword string
-
-var apiGatewayImage = '${acrLoginServer}/api-gateway:${imageTag}'
-var userServiceImage = '${acrLoginServer}/user-service:${imageTag}'
-var discoveryImage = empty(discoveryServerImage) ? '' : discoveryServerImage
-
-resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
-  name: logAnalyticsWorkspaceName
-  location: location
-  properties: {
-    sku: {
-      name: 'PerGB2018'
-    }
-    retentionInDays: 30
-  }
+function Write-Section {
+param([string]$Message)
+Write-Host "`n=== $Message ===" -ForegroundColor Cyan
 }
 
-resource vnet 'Microsoft.Network/virtualNetworks@2023-09-01' = {
-  name: vnetName
-  location: location
-  properties: {
-    addressSpace: {
-      addressPrefixes: [
-        vnetAddressPrefix
-      ]
-    }
-    subnets: [
-      {
-        name: infrastructureSubnetName
-        properties: {
-          addressPrefix: infrastructureSubnetPrefix
-          delegations: [
-            {
-              name: 'acaDelegation'
-              properties: {
-                serviceName: 'Microsoft.App/environments'
-              }
-            }
-          ]
-        }
-      }
-    ]
-  }
+function Write-Info {
+param([string]$Message)
+Write-Host "  $Message" -ForegroundColor Gray
 }
 
-resource containerAppsEnv 'Microsoft.App/managedEnvironments@2024-03-01' = {
-  name: containerAppsEnvName
-  location: location
-  properties: {
-    appLogsConfiguration: {
-      destination: 'log-analytics'
-      logAnalyticsConfiguration: {
-        customerId: logAnalytics.properties.customerId
-        sharedKey: logAnalytics.listKeys().primarySharedKey
-      }
-    }
-    vnetConfiguration: {
-      infrastructureSubnetId: resourceId(
-        'Microsoft.Network/virtualNetworks/subnets',
-        vnet.name,
-        infrastructureSubnetName
-      )
-    }
-  }
+function Assert-CommandExists {
+param([string]$CommandName)
+if (-not (Get-Command $CommandName -ErrorAction SilentlyContinue)) {
+throw "Required command '$CommandName' was not found. Install it and try again."
+}
 }
 
-resource apiGatewayApp 'Microsoft.App/containerApps@2024-03-01' = {
-  name: apiGatewayAppName
-  location: location
-  identity: {
-    type: 'SystemAssigned'
-  }
-  properties: {
-    managedEnvironmentId: containerAppsEnv.id
-    configuration: {
-      registries: [
-        {
-          server: acrLoginServer
-          username: acrUsername
-          passwordSecretRef: 'acr-password'
-        }
-      ]
-      secrets: [
-        {
-          name: 'acr-password'
-          value: acrPassword
-        }
-        {
-          name: 'jwt-secret'
-          value: jwtSecret
-        }
-      ]
-      ingress: {
-        external: true
-        targetPort: apiGatewayPort
-        transport: 'auto'
-        allowInsecure: false
-      }
-    }
-    template: {
-      containers: [
-        {
-          name: 'api-gateway'
-          image: apiGatewayImage
-          env: [
-            {
-              name: 'USER_SERVICE_URL'
-              value: 'http://${userServiceApp.properties.configuration.ingress.fqdn}'
-            }
-            {
-              name: 'JWT_SECRET'
-              secretRef: 'jwt-secret'
-            }
-          ]
-          resources: {
-            cpu: json('0.5')
-            memory: '1Gi'
-          }
-        }
-      ]
-      scale: {
-        minReplicas: 1
-        maxReplicas: 3
-      }
-    }
-  }
+function Assert-AcrName {
+param([string]$Name)
+if ($Name -notmatch '^[a-z0-9]{5,50}$') {
+throw "ACR name must be 5-50 characters, lowercase letters and numbers only."
+}
 }
 
-resource userServiceApp 'Microsoft.App/containerApps@2024-03-01' = {
-  name: userServiceAppName
-  location: location
-  identity: {
-    type: 'SystemAssigned'
-  }
-  properties: {
-    managedEnvironmentId: containerAppsEnv.id
-    configuration: {
-      registries: [
-        {
-          server: acrLoginServer
-          username: acrUsername
-          passwordSecretRef: 'acr-password'
-        }
-      ]
-      secrets: [
-        {
-          name: 'acr-password'
-          value: acrPassword
-        }
-        {
-          name: 'db-password'
-          value: dbPassword
-        }
-        {
-          name: 'jwt-secret'
-          value: jwtSecret
-        }
-      ]
-      ingress: {
-        external: false
-        targetPort: userServicePort
-        transport: 'auto'
-        allowInsecure: false
-      }
-    }
-    template: {
-      containers: [
-        {
-          name: 'user-service'
-          image: userServiceImage
-          env: [
-            {
-              name: 'DB_URL'
-              value: dbUrl
-            }
-            {
-              name: 'DB_USERNAME'
-              value: dbUsername
-            }
-            {
-              name: 'DB_PASSWORD'
-              secretRef: 'db-password'
-            }
-            {
-              name: 'JWT_SECRET'
-              secretRef: 'jwt-secret'
-            }
-            {
-              name: 'JWT_EXPIRATION'
-              value: jwtExpiration
-            }
-          ]
-          resources: {
-            cpu: json('0.5')
-            memory: '1Gi'
-          }
-        }
-      ]
-      scale: {
-        minReplicas: 1
-        maxReplicas: 3
-      }
-    }
-  }
+function New-RandomSecret {
+param([int]$ByteCount)
+$bytes = New-Object byte[] $ByteCount
+
+# PowerShell 5.1 compatible random number generation
+$rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+$rng.GetBytes($bytes)
+$rng.Dispose()
+
+[Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
 }
 
-resource discoveryServerApp 'Microsoft.App/containerApps@2024-03-01' = if (deployDiscoveryServer && !empty(discoveryImage)) {
-  name: discoveryServerAppName
-  location: location
-  identity: {
-    type: 'SystemAssigned'
-  }
-  properties: {
-    managedEnvironmentId: containerAppsEnv.id
-    configuration: {
-      registries: [
-        {
-          server: acrLoginServer
-          username: acrUsername
-          passwordSecretRef: 'acr-password'
-        }
-      ]
-      secrets: [
-        {
-          name: 'acr-password'
-          value: acrPassword
-        }
-      ]
-      ingress: {
-        external: false
-        targetPort: discoveryServerPort
-        transport: 'auto'
-        allowInsecure: false
-      }
-    }
-    template: {
-      containers: [
-        {
-          name: 'discovery-server'
-          image: discoveryImage
-          resources: {
-            cpu: json('0.5')
-            memory: '1Gi'
-          }
-        }
-      ]
-      scale: {
-        minReplicas: 1
-        maxReplicas: 2
-      }
-    }
-  }
+function Convert-SecureStringToPlainText {
+param([System.Security.SecureString]$SecureString)
+$bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecureString)
+try {
+[Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
+}
+finally {
+if ($bstr -ne [IntPtr]::Zero) {
+[Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+}
+}
 }
 
-output containerAppsEnvironmentId string = containerAppsEnv.id
-output apiGatewayPublicUrl string = 'https://${apiGatewayApp.properties.configuration.ingress.fqdn}'
-output userServiceInternalFqdn string = userServiceApp.properties.configuration.ingress.fqdn
-output discoveryServerInternalFqdn string = deployDiscoveryServer && !empty(discoveryImage)
-  ? '${discoveryServerAppName} (internal ingress enabled)'
-  : ''
+function Read-OrGenerateSecret {
+param(
+[string]$Prompt,
+[int]$LengthInBytes,
+[switch]$PromptForValue
+)
+
+if ($PromptForValue) {
+$secureValue = Read-Host -AsSecureString -Prompt $Prompt
+if (-not $secureValue) {
+throw "$Prompt cannot be empty."
+}
+return Convert-SecureStringToPlainText -SecureString $secureValue
+}
+
+return New-RandomSecret -ByteCount $LengthInBytes
+}
+
+function Read-RequiredPlainText {
+param([string]$Prompt)
+$value = Read-Host -Prompt $Prompt
+if ([string]::IsNullOrWhiteSpace($value)) {
+throw "$Prompt cannot be empty."
+}
+return $value.Trim()
+}
+
+function ConvertTo-CompactJson {
+param([Parameter(Mandatory = $true)]$InputObject)
+$InputObject | ConvertTo-Json -Depth 10 -Compress
+}
+
+Assert-CommandExists -CommandName 'az'
+Assert-AcrName -Name $AcrName
+
+Write-Section 'Bootstrap configuration'
+Write-Info "Resource group : $ResourceGroupName"
+Write-Info "Region         : $Location"
+Write-Info "ACR name       : $AcrName"
+
+$subscriptionId = az account show --query id --output tsv 2>$null
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($subscriptionId)) {
+throw 'You must be logged in to Azure CLI before running this script.'
+}
+
+Write-Info "Subscription   : $subscriptionId"
+
+Write-Section 'Secrets and dependency inputs'
+$postgresPassword = Read-OrGenerateSecret -Prompt 'Enter PostgreSQL password for the Azure Flexible Server and application DB users' -LengthInBytes 48 -PromptForValue:$PromptSecrets
+$jwtSecret = Read-OrGenerateSecret -Prompt 'Enter JWT secret for all services' -LengthInBytes 64 -PromptForValue:$PromptSecrets
+
+$rabbitmqHost = Read-RequiredPlainText -Prompt 'Enter RabbitMQ host for the cloud deployment'
+$rabbitmqPassword = Read-OrGenerateSecret -Prompt 'Enter RabbitMQ password' -LengthInBytes 32 -PromptForValue:$PromptSecrets
+$googleClientId = Read-RequiredPlainText -Prompt 'Enter Google OAuth Client ID'
+$googleClientSecret = Read-OrGenerateSecret -Prompt 'Enter Google OAuth Client Secret' -LengthInBytes 32 -PromptForValue:$PromptSecrets
+$appOAuth2RedirectUri = Read-Host -Prompt 'Enter OAuth2 redirect URI for the gateway/public frontend callback (press Enter to skip)'
+$zipkinUrl = Read-Host -Prompt 'Enter Zipkin URL (press Enter to skip)'
+
+$postgresqlServerName = ('pg-' + $AcrName).ToLowerInvariant()
+$redisCacheName = ('redis-' + $AcrName).ToLowerInvariant()
+
+Write-Section 'Creating base Azure infrastructure'
+az group create --name $ResourceGroupName --location $Location --output none
+if ($LASTEXITCODE -ne 0) { throw "Failed to create Azure Resource Group." }
+
+Write-Info 'Registering Azure providers used by the Bicep template...'
+$providers = @(
+'Microsoft.App',
+'Microsoft.OperationalInsights',
+'Microsoft.Network',
+'Microsoft.DBforPostgreSQL',
+'Microsoft.Cache',
+'Microsoft.ManagedIdentity',
+'Microsoft.ContainerRegistry',
+'Microsoft.Insights'
+)
+
+foreach ($provider in $providers) {
+az provider register --namespace $provider --wait --output none
+}
+
+Write-Info 'Creating Azure Container Registry with Basic SKU and admin access...'
+$acrLookup = az acr show --name $AcrName --resource-group $ResourceGroupName --output none 2>$null
+if ($LASTEXITCODE -ne 0) {
+az acr create --name $AcrName --resource-group $ResourceGroupName --sku Basic --admin-enabled true --output none
+if ($LASTEXITCODE -ne 0) { throw "Failed to create Azure Container Registry." }
+} else {
+az acr update --name $AcrName --resource-group $ResourceGroupName --admin-enabled true --output none
+if ($LASTEXITCODE -ne 0) { throw "Failed to update Azure Container Registry." }
+}
+
+$acrLoginServer = az acr show --name $AcrName --resource-group $ResourceGroupName --query loginServer --output tsv
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($acrLoginServer)) {
+throw 'Unable to resolve the ACR login server.'
+}
+
+$acrCredentials = az acr credential show --name $AcrName --resource-group $ResourceGroupName --output json | ConvertFrom-Json
+if ($LASTEXITCODE -ne 0) {
+throw 'Unable to read ACR credentials.'
+}
+
+$acrUsername = $acrCredentials.username
+$acrPassword = $acrCredentials.passwords[0].value
+
+Write-Section 'Cloud image builds via Azure Container Registry'
+$services = @(
+'api-gateway',
+'user-service',
+'auction-service',
+'bid-service',
+'notification-service'
+)
+
+foreach ($service in $services) {
+$dockerfilePath = "$service/Dockerfile"
+if (-not (Test-Path $dockerfilePath)) {
+throw "Missing Dockerfile for service '$service' at '$dockerfilePath'."
+}
+
+Write-Info "Building $service in Azure using $dockerfilePath"
+& az acr build --registry $AcrName --image "$service`:latest" --file $dockerfilePath .
+if ($LASTEXITCODE -ne 0) {
+throw "Azure Container Registry build failed for '$service'."
+}
+}
+
+Write-Section 'Deploying infrastructure with Bicep'
+$templateFile = 'infra/container-apps.bicep'
+if (-not (Test-Path $templateFile)) {
+throw "Bicep template not found at '$templateFile'."
+}
+
+$deploymentName = "bootstrap-aca-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+$deploymentParameters = @(
+"location=$Location"
+"acrLoginServer=$acrLoginServer"
+"acrUsername=$acrUsername"
+"acrPassword=$acrPassword"
+"jwtSecret=$jwtSecret"
+"dbPassword=$postgresPassword"
+"rabbitmqHost=$rabbitmqHost"
+"rabbitmqPassword=$rabbitmqPassword"
+"googleClientId=$googleClientId"
+"googleClientSecret=$googleClientSecret"
+"appOAuth2RedirectUri=$appOAuth2RedirectUri"
+"postgresqlServerName=$postgresqlServerName"
+"postgresqlAdminUsername=$PostgreSqlAdminUsername"
+"postgresqlAdminPassword=$postgresPassword"
+"redisCacheName=$redisCacheName"
+"zipkinUrl=$zipkinUrl"
+'imageTag=latest'
+)
+
+$deploymentResult = & az deployment group create `
+--name $deploymentName `
+--resource-group $ResourceGroupName `
+--template-file $templateFile `
+--parameters @deploymentParameters `
+--output json | ConvertFrom-Json
+
+if ($LASTEXITCODE -ne 0) {
+throw 'Bicep deployment failed.'
+}
+
+$outputs = $deploymentResult.properties.outputs
+
+Write-Section 'Deployment outputs'
+if ($outputs.apiGatewayPublicUrl) {
+Write-Info "API Gateway public URL : $($outputs.apiGatewayPublicUrl.value)"
+}
+if ($outputs.userServiceInternalFqdn) {
+Write-Info "User Service FQDN      : $($outputs.userServiceInternalFqdn.value)"
+}
+if ($outputs.auctionServiceInternalFqdn) {
+Write-Info "Auction Service FQDN   : $($outputs.auctionServiceInternalFqdn.value)"
+}
+if ($outputs.bidServiceInternalFqdn) {
+Write-Info "Bid Service FQDN       : $($outputs.bidServiceInternalFqdn.value)"
+}
+if ($outputs.notificationServiceInternalFqdn) {
+Write-Info "Notification FQDN      : $($outputs.notificationServiceInternalFqdn.value)"
+}
+if ($outputs.postgresqlFqdn) {
+Write-Info "PostgreSQL FQDN        : $($outputs.postgresqlFqdn.value)"
+}
+if ($outputs.redisCacheHostName) {
+Write-Info "Redis host name        : $($outputs.redisCacheHostName.value)"
+}
+
+Write-Section 'GitHub repository setup'
+$servicePrincipalName = "sp-ruhuna-auction-$AcrName"
+$servicePrincipalScope = "/subscriptions/$subscriptionId/resourceGroups/$ResourceGroupName"
+$spResult = & az ad sp create-for-rbac `
+--name $servicePrincipalName `
+--role Contributor `
+--scopes $servicePrincipalScope `
+--output json | ConvertFrom-Json
+
+if ($LASTEXITCODE -ne 0) {
+throw 'Failed to create the GitHub deployment service principal.'
+}
+
+$azureCredentials = [ordered]@{
+clientId = $spResult.appId
+clientSecret = $spResult.password
+subscriptionId = $subscriptionId
+tenantId = $spResult.tenant
+resourceManagerEndpointUrl = 'https://management.azure.com/'
+activeDirectoryEndpointUrl = 'https://login.microsoftonline.com/'
+}
+
+$azureCredentialsJson = ConvertTo-CompactJson -InputObject $azureCredentials
+
+Write-Host ''
+Write-Host 'Copy these into GitHub repository Secrets:' -ForegroundColor Cyan
+Write-Host '  AZURE_CREDENTIALS =' -ForegroundColor Yellow
+Write-Host "  $azureCredentialsJson" -ForegroundColor White
+Write-Host "  ACR_LOGIN_SERVER = $acrLoginServer" -ForegroundColor Yellow
+Write-Host "  ACR_USERNAME     = $acrUsername" -ForegroundColor Yellow
+Write-Host "  ACR_PASSWORD     = $acrPassword" -ForegroundColor Yellow
+
+Write-Host ''
+Write-Host 'Copy these into GitHub repository Variables:' -ForegroundColor Cyan
+Write-Host "  AZURE_RESOURCE_GROUP                          = $ResourceGroupName" -ForegroundColor Yellow
+Write-Host "  AZURE_API_GATEWAY_CONTAINER_APP_NAME          = api-gateway" -ForegroundColor Yellow
+Write-Host "  AZURE_USER_SERVICE_CONTAINER_APP_NAME         = user-service" -ForegroundColor Yellow
+Write-Host "  AZURE_AUCTION_SERVICE_CONTAINER_APP_NAME      = auction-service" -ForegroundColor Yellow
+Write-Host "  AZURE_BID_SERVICE_CONTAINER_APP_NAME          = bid-service" -ForegroundColor Yellow
+Write-Host "  AZURE_NOTIFICATION_SERVICE_CONTAINER_APP_NAME = notification-service" -ForegroundColor Yellow
+
+Write-Host ''
+Write-Host 'Bootstrap complete. Your next pushes can use .github/workflows/deploy.yml directly.' -ForegroundColor Green

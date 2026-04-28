@@ -36,7 +36,7 @@ public class BidService {
     private final OutboxRepository outboxRepository;
     private final ObjectMapper objectMapper;
 
-    @Value("${app.auction-service.url:http://localhost:8082}")
+    @Value("${app.auction-service.url}")
     private String auctionServiceUrl;
 
     @Transactional

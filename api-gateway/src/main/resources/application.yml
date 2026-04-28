@@ -25,7 +25,7 @@ spring:
         webmvc:
           routes:
             - id: user-service-auth-public
-              uri: ${USER_SERVICE_URL:http://localhost:8081}
+              uri: ${USER_SERVICE_URL:http://user-service:8081}
               predicates:
                 - Path=/api/users/register,/api/users/login,/api/users/status,/api/users/refresh,/login/**,/oauth2/**
               filters:
@@ -45,7 +45,7 @@ spring:
                       - 504
 
             - id: user-service-protected
-              uri: ${USER_SERVICE_URL:http://localhost:8081}
+              uri: ${USER_SERVICE_URL:http://user-service:8081}
               predicates:
                 - Path=/api/users/**
               filters:
@@ -65,7 +65,7 @@ spring:
                       - 504
 
             - id: auction-service
-              uri: ${AUCTION_SERVICE_URL:http://localhost:8082}
+              uri: ${AUCTION_SERVICE_URL:http://auction-service:8082}
               predicates:
                 - Path=/api/auctions/**
               filters:
@@ -85,7 +85,7 @@ spring:
                       - 504
 
             - id: bid-service
-              uri: ${BID_SERVICE_URL:http://localhost:8083}
+              uri: ${BID_SERVICE_URL:http://bid-service:8083}
               predicates:
                 - Path=/api/bids/**
               filters:
@@ -105,7 +105,7 @@ spring:
                       - 504
 
             - id: payment-service
-              uri: ${PAYMENT_SERVICE_URL:http://localhost:8084}
+              uri: ${PAYMENT_SERVICE_URL:http://payment-service:8084}
               predicates:
                 - Path=/api/payments/**
               filters:
@@ -125,7 +125,7 @@ spring:
                       - 504
 
             - id: notification-service
-              uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8085}
+              uri: ${NOTIFICATION_SERVICE_URL:http://notification-service:8085}
               predicates:
                 - Path=/api/notifications/**
               filters:
@@ -146,7 +146,7 @@ spring:
 
 app:
   jwt:
-    secret: ${JWT_SECRET}
+    secret: ${JWT_SECRET:}
   gateway:
     public-paths:
       - /api/users/register
@@ -273,7 +273,7 @@ management:
       type: w3c
   zipkin:
     tracing:
-      endpoint: ${ZIPKIN_URL:http://localhost:9411/api/v2/spans}
+      endpoint: ${ZIPKIN_URL:}
   endpoints:
     web:
       exposure:

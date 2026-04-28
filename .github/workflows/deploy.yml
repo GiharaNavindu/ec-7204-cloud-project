@@ -34,6 +34,8 @@ jobs:
             path: auction-service
           - name: bid-service
             path: bid-service
+          - name: notification-service
+            path: notification-service
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -76,7 +78,7 @@ jobs:
 
       - name: Build all services for analysis
         run: |
-          for service in api-gateway user-service auction-service bid-service; do
+          for service in api-gateway user-service auction-service bid-service notification-service; do
             cd $service
             chmod +x mvnw
             ./mvnw -B -DskipTests compile
@@ -101,6 +103,8 @@ jobs:
             path: auction-service
           - name: bid-service
             path: bid-service
+          - name: notification-service
+            path: notification-service
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -145,6 +149,10 @@ jobs:
             path: bid-service
             dockerfile: bid-service/Dockerfile
             image: bid-service
+          - name: notification-service
+            path: notification-service
+            dockerfile: notification-service/Dockerfile
+            image: notification-service
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -162,7 +170,7 @@ jobs:
       - name: Build and push image
         uses: docker/build-push-action@v6
         with:
-          context: ./${{ matrix.service.path }}
+          context: .
           file: ./${{ matrix.service.dockerfile }}
           push: true
           provenance: false
@@ -189,6 +197,8 @@ jobs:
             image: auction-service
           - name: bid-service
             image: bid-service
+          - name: notification-service
+            image: notification-service
     steps:
       - name: Log in to Azure
         uses: azure/login@v2
@@ -213,6 +223,9 @@ jobs:
                 ;;
               bid-service)
                 APP_NAME="${{ vars.AZURE_BID_SERVICE_CONTAINER_APP_NAME }}"
+                ;;
+              notification-service)
+                APP_NAME="${{ vars.AZURE_NOTIFICATION_SERVICE_CONTAINER_APP_NAME }}"
                 ;;
               *)
                 echo "Unknown service: ${{ matrix.service.name }}"
