@@ -6,8 +6,10 @@
 package com.gihara.userservice.security;
 
 import java.io.IOException;
+import java.util.List;
 
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -35,8 +37,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             if (jwt != null && jwtProvider.validateToken(jwt)) {
                 String email = jwtProvider.getEmailFromToken(jwt);
+                String role = jwtProvider.getRoleFromToken(jwt);
                 UsernamePasswordAuthenticationToken authentication = 
-                        new UsernamePasswordAuthenticationToken(email, null, null);
+                        new UsernamePasswordAuthenticationToken(
+                                email,
+                                null,
+                                role != null ? List.of(new SimpleGrantedAuthority(role)) : List.of());
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             }
         } catch (Exception e) {
