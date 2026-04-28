@@ -13,15 +13,19 @@ import com.gihara.notificationservice.dto.NotificationPageResponse;
 import com.gihara.notificationservice.dto.NotificationReadAllResponse;
 import com.gihara.notificationservice.dto.NotificationResponse;
 import com.gihara.notificationservice.dto.UnreadCountResponse;
+import com.gihara.notificationservice.event.BidPlacedEvent;
 import com.gihara.notificationservice.entity.Notification;
 import com.gihara.notificationservice.entity.NotificationChannel;
 import com.gihara.notificationservice.entity.NotificationStatus;
+import com.gihara.notificationservice.entity.NotificationType;
 import com.gihara.notificationservice.exception.NotificationAccessDeniedException;
 import com.gihara.notificationservice.exception.NotificationNotFoundException;
 import com.gihara.notificationservice.repository.NotificationRepository;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class NotificationService {
@@ -30,6 +34,10 @@ public class NotificationService {
 
     @Transactional
     public NotificationResponse createNotification(CreateNotificationRequest request) {
+        if (request.getReferenceId() != null && notificationRepository.existsByReferenceId(request.getReferenceId())) {
+            throw new IllegalArgumentException("Notification reference already exists: " + request.getReferenceId());
+        }
+
         Notification notification = Notification.builder()
                 .userId(request.getUserId())
                 .type(request.getType())
@@ -44,6 +52,37 @@ public class NotificationService {
                 .build();
 
         return mapToResponse(notificationRepository.save(notification));
+    }
+
+    @Transactional
+    public void createOutbidNotification(BidPlacedEvent event) {
+        if (event.getPreviousHighestBidderUserId() == null || event.getPreviousHighestBidderUserId().equals(event.getUserId())) {
+            log.debug("Skipping outbid notification for bidId={} because there is no previous competing bidder", event.getBidId());
+            return;
+        }
+
+        String referenceId = buildOutbidReferenceId(event);
+        if (notificationRepository.existsByReferenceId(referenceId)) {
+            log.info("Skipping duplicate outbid notification for referenceId={}", referenceId);
+            return;
+        }
+
+        Notification notification = Notification.builder()
+                .userId(event.getPreviousHighestBidderUserId())
+                .type(NotificationType.BID_OUTBID)
+                .title("You were outbid")
+                .message("Another bidder placed a higher bid on auction #" + event.getAuctionId())
+                .channel(NotificationChannel.IN_APP)
+                .status(NotificationStatus.UNREAD)
+                .auctionId(event.getAuctionId())
+                .bidId(event.getBidId())
+                .referenceId(referenceId)
+                .metadata(buildOutbidMetadata(event))
+                .build();
+
+        notificationRepository.save(notification);
+        log.info("Created outbid notification for userId={} auctionId={} bidId={}",
+                notification.getUserId(), notification.getAuctionId(), notification.getBidId());
     }
 
     @Transactional(readOnly = true)
@@ -112,5 +151,17 @@ public class NotificationService {
                 .referenceId(notification.getReferenceId())
                 .metadata(notification.getMetadata())
                 .build();
+    }
+
+    private String buildOutbidReferenceId(BidPlacedEvent event) {
+        return "bid-outbid:" + event.getEventId() + ":" + event.getPreviousHighestBidderUserId();
+    }
+
+    private String buildOutbidMetadata(BidPlacedEvent event) {
+        return "{\"eventId\":\"" + event.getEventId()
+                + "\",\"newBidUserId\":" + event.getUserId()
+                + ",\"newBidAmount\":\"" + event.getAmount()
+                + "\",\"previousHighestAmount\":\"" + event.getPreviousHighestAmount()
+                + "\"}";
     }
 }

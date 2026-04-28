@@ -5,9 +5,11 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -27,6 +29,7 @@ import com.gihara.notificationservice.dto.NotificationPageResponse;
 import com.gihara.notificationservice.dto.NotificationReadAllResponse;
 import com.gihara.notificationservice.dto.NotificationResponse;
 import com.gihara.notificationservice.dto.UnreadCountResponse;
+import com.gihara.notificationservice.event.BidPlacedEvent;
 import com.gihara.notificationservice.entity.Notification;
 import com.gihara.notificationservice.entity.NotificationChannel;
 import com.gihara.notificationservice.entity.NotificationStatus;
@@ -71,6 +74,67 @@ class NotificationServiceTest {
         assertEquals(NotificationChannel.IN_APP, savedNotification.getChannel());
         assertEquals(100L, response.getId());
         assertNotNull(response.getCreatedAt());
+    }
+
+    @Test
+    void createOutbidNotification_shouldPersistNotificationForPreviousHighestBidder() {
+        BidPlacedEvent event = BidPlacedEvent.builder()
+                .eventId("evt-1")
+                .bidId(22L)
+                .auctionId(8L)
+                .userId(4L)
+                .userEmail("new@example.com")
+                .amount(new BigDecimal("125.50"))
+                .previousHighestBidId(7L)
+                .previousHighestBidderUserId(9L)
+                .previousHighestBidderEmail("previous@example.com")
+                .previousHighestAmount(new BigDecimal("120.00"))
+                .build();
+
+        when(notificationRepository.existsByReferenceId("bid-outbid:evt-1:9")).thenReturn(false);
+
+        notificationService.createOutbidNotification(event);
+
+        ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
+        verify(notificationRepository).save(captor.capture());
+
+        Notification savedNotification = captor.getValue();
+        assertEquals(9L, savedNotification.getUserId());
+        assertEquals(NotificationType.BID_OUTBID, savedNotification.getType());
+        assertEquals("You were outbid", savedNotification.getTitle());
+        assertEquals("bid-outbid:evt-1:9", savedNotification.getReferenceId());
+        assertEquals(22L, savedNotification.getBidId());
+    }
+
+    @Test
+    void createOutbidNotification_shouldSkipWhenNoPreviousCompetingBidder() {
+        BidPlacedEvent event = BidPlacedEvent.builder()
+                .eventId("evt-2")
+                .bidId(23L)
+                .auctionId(8L)
+                .userId(4L)
+                .build();
+
+        notificationService.createOutbidNotification(event);
+
+        verify(notificationRepository, never()).save(any(Notification.class));
+    }
+
+    @Test
+    void createOutbidNotification_shouldSkipDuplicateReference() {
+        BidPlacedEvent event = BidPlacedEvent.builder()
+                .eventId("evt-3")
+                .bidId(24L)
+                .auctionId(9L)
+                .userId(4L)
+                .previousHighestBidderUserId(12L)
+                .build();
+
+        when(notificationRepository.existsByReferenceId("bid-outbid:evt-3:12")).thenReturn(true);
+
+        notificationService.createOutbidNotification(event);
+
+        verify(notificationRepository, never()).save(any(Notification.class));
     }
 
     @Test

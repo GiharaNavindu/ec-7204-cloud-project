@@ -1,17 +1,19 @@
-package com.gihara.bidservice.event;
+package com.gihara.notificationservice.event;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
 
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class BidPlacedEvent {
+
     private String eventId;
     private Long bidId;
     private Long auctionId;

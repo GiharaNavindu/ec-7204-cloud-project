@@ -33,9 +33,9 @@ app:
 # RabbitMQ exchange and queue configuration
 rabbitmq:
   notification:
-    exchange: domain-events.exchange
+    exchange: bid.exchange
     queue: notifications.queue
-    routing-key: domain.events.*
+    routing-key: bid.placed
     dlq: notifications.dlq
     dlx: notifications.dlx
 

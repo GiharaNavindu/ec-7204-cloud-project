@@ -11,8 +11,20 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.H2Dialect
+  rabbitmq:
+    listener:
+      simple:
+        auto-startup: false
 
 app:
   jwt:
     secret: 1234567890123456789012345678901234567890123456789012345678901234
     expiration: 86400000
+
+rabbitmq:
+  notification:
+    exchange: bid.exchange
+    queue: notifications.queue
+    routing-key: bid.placed
+    dlq: notifications.dlq
+    dlx: notifications.dlx

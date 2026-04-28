@@ -4,6 +4,8 @@ import java.math.BigDecimal;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -86,8 +88,50 @@ class BidServiceTest {
         assertEquals(BidStatus.ACTIVE, savedBid.getStatus());
         assertEquals(22L, response.getId());
         assertEquals(new BigDecimal("125.50"), response.getAmount());
+        assertNotNull(publishedEvent.getEventId());
         assertEquals(22L, publishedEvent.getBidId());
         assertEquals(8L, publishedEvent.getAuctionId());
+        assertNull(publishedEvent.getPreviousHighestBidderUserId());
+    }
+
+    @Test
+    void placeBid_shouldPublishOutbidDetailsWhenReplacingAnotherUser() {
+        BidRequest request = new BidRequest();
+        request.setAuctionId(8L);
+        request.setAmount(new BigDecimal("150.00"));
+
+        AuctionResponse auction = new AuctionResponse();
+        auction.setId(8L);
+        auction.setStatus("IN_PROG");
+
+        Bid currentHighest = Bid.builder()
+                .id(7L)
+                .auctionId(8L)
+                .userId(9L)
+                .userEmail("previous@example.com")
+                .amount(new BigDecimal("120.00"))
+                .status(BidStatus.ACTIVE)
+                .build();
+
+        when(restTemplate.getForObject(eq("http://auction-service:8082/api/auctions/8"), eq(AuctionResponse.class)))
+                .thenReturn(auction);
+        when(bidRepository.findTopByAuctionIdOrderByAmountDesc(8L)).thenReturn(Optional.of(currentHighest));
+        when(bidRepository.save(any(Bid.class))).thenAnswer(invocation -> {
+            Bid bid = invocation.getArgument(0);
+            bid.setId(22L);
+            return bid;
+        });
+
+        bidService.placeBid(request, "jane@example.com", 4L);
+
+        ArgumentCaptor<Object> eventCaptor = ArgumentCaptor.forClass(Object.class);
+        verify(rabbitTemplate).convertAndSend(eq("bid.exchange"), eq("bid.placed"), eventCaptor.capture());
+
+        BidPlacedEvent publishedEvent = (BidPlacedEvent) eventCaptor.getValue();
+        assertEquals(7L, publishedEvent.getPreviousHighestBidId());
+        assertEquals(9L, publishedEvent.getPreviousHighestBidderUserId());
+        assertEquals("previous@example.com", publishedEvent.getPreviousHighestBidderEmail());
+        assertEquals(new BigDecimal("120.00"), publishedEvent.getPreviousHighestAmount());
     }
 
     @Test
