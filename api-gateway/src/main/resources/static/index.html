@@ -211,7 +211,14 @@
 
             try {
                 const data = await API.auth.login(email, password);
-                API.setToken(data.token);
+                const accessToken = data.accessToken || data.token;
+                if (!accessToken) {
+                    throw new Error('Login response did not include an access token');
+                }
+                API.setToken(accessToken);
+                if (data.refreshToken) {
+                    localStorage.setItem('refreshToken', data.refreshToken);
+                }
                 window.location.href = "/auctions.html";
             } catch (err) {
                 UI.showToast(err.message || 'Login failed', 'error');

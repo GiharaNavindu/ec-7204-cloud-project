@@ -94,6 +94,12 @@
                                 <div id="total-bids" class="text-2xl font-bold text-gray-300 font-syne">0</div>
                             </div>
                         </div>
+
+                        <div id="winner-panel" class="hidden mt-6 p-5 rounded-2xl border border-green-500/20 bg-green-500/5">
+                            <div class="text-[10px] uppercase tracking-widest text-green-400 font-bold mb-2">Auction Winner</div>
+                            <div id="winner-name" class="text-lg font-bold text-white"></div>
+                            <div id="winner-meta" class="text-sm text-gray-400 mt-1"></div>
+                        </div>
                     </div>
                 </div>
 
@@ -177,6 +183,7 @@
         let currentAuction = null;
         let countdownInterval = null;
         let currentBidVal = 0;
+        let currentBidHistory = [];
 
         async function init() {
             try {
@@ -219,6 +226,8 @@
                 document.getElementById('place-bid-btn').className = "w-full py-4 bg-gray-800 text-gray-500 rounded-2xl font-bold font-syne cursor-not-allowed";
             }
 
+            updateWinnerPanel();
+
             startCountdown(a.endTime || a.endDate);
         }
 
@@ -235,10 +244,22 @@
         async function loadBidHistory() {
             try {
                 const history = await API.bids.getHistory(auctionId);
-                renderHistory(history);
+                currentBidHistory = normalizeBidHistory(history);
+                renderHistory(currentBidHistory);
+                updateWinnerPanel();
             } catch (err) {
                 // history might not be implemented yet in some versions
             }
+        }
+
+        function normalizeBidHistory(bids) {
+            return (bids || [])
+                .slice()
+                .sort((left, right) => {
+                    const amountDiff = Number(right.amount || right.bidAmount || 0) - Number(left.amount || left.bidAmount || 0);
+                    if (amountDiff !== 0) return amountDiff;
+                    return new Date(right.placedAt || right.timestamp || 0) - new Date(left.placedAt || left.timestamp || 0);
+                });
         }
 
         function renderHistory(bids) {
@@ -261,6 +282,26 @@
                     </div>
                 </div>
             `).join('');
+        }
+
+        function updateWinnerPanel() {
+            const panel = document.getElementById('winner-panel');
+            if (!panel || !currentAuction) return;
+
+            const isEnded = currentAuction.status === 'ENDED' || currentAuction.status === 'CLOSED';
+            const winner = currentBidHistory[0];
+
+            if (!isEnded || !winner) {
+                panel.classList.add('hidden');
+                return;
+            }
+
+            const winnerName = winner.userEmail || winner.bidder || 'Winner';
+            const winnerAmount = UI.formatCurrency(winner.amount || winner.bidAmount || 0);
+
+            document.getElementById('winner-name').textContent = `${winnerName}`;
+            document.getElementById('winner-meta').textContent = `Winning bid: ${winnerAmount}${winner.userId ? ` • User #${winner.userId}` : ''}`;
+            panel.classList.remove('hidden');
         }
 
         function maskEmail(email) {
@@ -359,10 +400,12 @@
                 totalBids: 14
             };
             renderAuction(demo);
-            renderHistory([
+            currentBidHistory = normalizeBidHistory([
                 { userEmail: 'alice@example.com', amount: 12500, timestamp: new Date().toISOString() },
                 { userEmail: 'bob@example.com', amount: 12400, timestamp: new Date(Date.now() - 60000).toISOString() }
             ]);
+            renderHistory(currentBidHistory);
+            updateWinnerPanel();
         }
 
         init();
