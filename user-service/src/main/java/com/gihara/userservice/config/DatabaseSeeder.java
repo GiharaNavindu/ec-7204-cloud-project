@@ -1,14 +1,16 @@
 package com.gihara.userservice.config;
 
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Component;
+
 import com.gihara.userservice.entity.User;
 import com.gihara.userservice.enums.UserRole;
 import com.gihara.userservice.enums.UserStatus;
 import com.gihara.userservice.repository.UserRepository;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.CommandLineRunner;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
@@ -25,7 +27,7 @@ public class DatabaseSeeder implements CommandLineRunner {
             User admin = User.builder()
                     .username("admin")
                     .email(adminEmail)
-                    .password(passwordEncoder.encode("Admin123!"))
+                    .password(passwordEncoder.encode("Admin123Admin!"))
                     .userRole(UserRole.ADMIN)
                     .userStatus(UserStatus.ACTIVE)
                     .build();
