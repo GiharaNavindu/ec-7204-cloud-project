@@ -4,7 +4,7 @@ services:
     container_name: auction-postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-admin}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       POSTGRES_DB: postgres
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
@@ -45,7 +45,7 @@ services:
     container_name: auction-grafana
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD must be set}
       GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
@@ -69,13 +69,13 @@ services:
     container_name: user-service
     restart: on-failure  # Added to handle fast-startup crashes
     environment:
-      DB_URL: jdbc:postgresql://postgres:5432/user_db
+      DB_URL: ${USER_DB_URL:?USER_DB_URL must be set}
       DB_USERNAME: admin
-      DB_PASSWORD: password
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
       JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
-      GOOGLE_CLIENT_ID: 841352140356-ghgm9hr464kd5opehretkhb0t33g2113.apps.googleusercontent.com
-      GOOGLE_CLIENT_SECRET: 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
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?GOOGLE_CLIENT_ID must be set}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?GOOGLE_CLIENT_SECRET must be set}
     depends_on:
       - postgres
     ports:
@@ -88,10 +88,10 @@ services:
     container_name: auction-service
     restart: on-failure  # Added to handle fast-startup crashes
     environment:
-      DB_URL: ${AUCTION_DB_URL:-jdbc:postgresql://postgres:5432/auction_db}
+      DB_URL: ${AUCTION_DB_URL:?AUCTION_DB_URL must be set}
       DB_USERNAME: ${POSTGRES_USER:-admin}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-password}
-      JWT_SECRET: ${JWT_SECRET:-change-me}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
       JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
     depends_on:
       - postgres
@@ -105,10 +105,10 @@ services:
     container_name: bid-service
     restart: on-failure  # Added to handle fast-startup crashes
     environment:
-      DB_URL: ${BID_DB_URL:-jdbc:postgresql://postgres:5432/bid_db}
+      DB_URL: ${BID_DB_URL:?BID_DB_URL must be set}
       DB_USERNAME: ${POSTGRES_USER:-admin}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-password}
-      JWT_SECRET: ${JWT_SECRET:-change-me}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
       JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
       AUCTION_SERVICE_URL: ${AUCTION_SERVICE_URL:-http://auction-service:8082}
       RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq}
@@ -127,10 +127,10 @@ services:
     container_name: notification-service
     restart: on-failure
     environment:
-      NOTIFICATION_DB_URL: jdbc:postgresql://postgres:5432/notification_db
+      NOTIFICATION_DB_URL: ${NOTIFICATION_DB_URL:?NOTIFICATION_DB_URL must be set}
       DB_USERNAME: ${POSTGRES_USER:-admin}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-password}
-      JWT_SECRET: ${JWT_SECRET:-change-me}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
       JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
       RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq}
       RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
