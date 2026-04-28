@@ -15,7 +15,7 @@ class JwtProviderTest {
         JwtProvider provider = new JwtProvider();
         ReflectionTestUtils.setField(provider, "jwtSecret",
                 "unit_test_secret_that_is_long_enough_for_hs512_and_more_than_64_chars_12345");
-        ReflectionTestUtils.setField(provider, "jwtExpirationInMs", 60000L);
+        ReflectionTestUtils.setField(provider, "accessTokenExpirationInMs", 60000L);
         ReflectionTestUtils.invokeMethod(provider, "validateSecret");
         return provider;
     }
@@ -50,6 +50,6 @@ class JwtProviderTest {
     @Test
     void getExpirationTime_shouldReturnConfiguredValue() {
         JwtProvider jwtProvider = createValidProvider();
-        assertEquals(60000L, jwtProvider.getExpirationTime());
+        assertEquals(60000L, jwtProvider.getAccessTokenExpirationTime());
     }
 }
