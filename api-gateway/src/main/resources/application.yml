@@ -163,8 +163,10 @@ app:
       - /index.html
       - /auctions.html
       - /bid.html
+      - /notifications.html
       - /js/**
       - /css/**
+      - /favicon.ico
 
 
     role-rules:
