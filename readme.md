@@ -15,7 +15,7 @@ A scalable, secure, and highly available cloud-native auction platform demonstra
 8. [Security Features](#security-features)
 9. [Monitoring and Observability](#monitoring-and-observability)
 10. [Deployment Information](#deployment-information)
-11. [STEPS TO RUN - Quick Start Guide](#quick-start-guide)
+11. [STEPS TO RUN - Quick Start Guide](#steps-to-run---quick-start-guide)
 12. [API Documentation](#api-documentation)
 13. [Testing](#testing)
 14. [Troubleshooting](#troubleshooting)
@@ -770,6 +770,7 @@ ZIPKIN_URL=http://zipkin:9411/api/v2/spans
 
 ---
 
+<a id="steps-to-run---quick-start-guide"></a>
 ## STEPS TO RUN - QUICK START GUIDE
 
 ### Prerequisites
@@ -878,16 +879,23 @@ curl -X POST http://localhost:8080/api/users/login \
 
 ### Step 7: Access Services
 
-| Service | URL | Purpose |
+**Client-Facing Access (Use These):**
+
+| Interface | URL | Purpose |
 |---------|-----|---------|
-| API Gateway | `http://localhost:8080` | Main API entry point |
-| User Service | `http://localhost:8081` | Auth endpoints |
-| Auction Service | `http://localhost:8082` | Auction endpoints |
-| Bid Service | `http://localhost:8083` | Bid endpoints |
-| Notification Service | `http://localhost:8085` | Notification endpoints |
-| Prometheus | `http://localhost:9090` | Metrics |
-| Grafana | `http://localhost:3000` | Dashboards |
-| RabbitMQ UI | `http://localhost:15672` | Message broker UI |
+| API Gateway | `http://localhost:8080` | Single entry point for all application APIs |
+| Prometheus | `http://localhost:9090` | Metrics collection and target status |
+| Grafana | `http://localhost:3000` | Dashboards and visualization |
+| RabbitMQ UI | `http://localhost:15672` | Message broker management UI |
+
+**Internal Service Ports (Development/Debug Only):**
+
+| Service | URL | Notes |
+|---------|-----|-------|
+| User Service | `http://localhost:8081` | Routed through gateway as `/api/users/**` |
+| Auction Service | `http://localhost:8082` | Routed through gateway as `/api/auctions/**` |
+| Bid Service | `http://localhost:8083` | Routed through gateway as `/api/bids/**` |
+| Notification Service | `http://localhost:8085` | Routed through gateway as `/api/notifications/**` |
 
 ### Step 8: Troubleshooting Startup
 
@@ -901,7 +909,22 @@ curl -X POST http://localhost:8080/api/users/login \
 
 ## API Documentation
 
-### Authentication APIs (User Service)
+All client-facing APIs are exposed through the API Gateway.
+
+**Base URL (Local):** `http://localhost:8080`
+
+**Important:** Use only gateway routes in clients and demos. Direct service ports are internal/development-only.
+
+### Gateway Routing Map (Internal Reference)
+
+| Gateway Path Prefix | Upstream Service |
+|---|---|
+| `/api/users/**` | user-service |
+| `/api/auctions/**` | auction-service |
+| `/api/bids/**` | bid-service |
+| `/api/notifications/**` | notification-service |
+
+### Authentication APIs (via API Gateway)
 
 #### Register New User
 ```
@@ -982,7 +1005,7 @@ Response: 200 OK
 
 ---
 
-### Auction APIs (Auction Service)
+### Auction APIs (via API Gateway)
 
 #### Create Auction
 ```
@@ -1059,7 +1082,7 @@ Response: 200 OK
 
 ---
 
-### Bid APIs (Bid Service)
+### Bid APIs (via API Gateway)
 
 #### Place Bid
 ```
@@ -1125,7 +1148,7 @@ Response: 200 OK
 
 ---
 
-### Notification APIs (Notification Service)
+### Notification APIs (via API Gateway)
 
 #### Get Notifications
 ```
@@ -1191,7 +1214,7 @@ Response: 200 OK
 
 ---
 
-### Health & Monitoring APIs
+### Health & Monitoring APIs (via API Gateway)
 
 #### Service Health
 ```
@@ -1551,59 +1574,10 @@ ec-7204-cloud-project/
 
 ---
 
-## Future Enhancements
-
-### Planned Features (Not Yet Implemented)
-
-1. **Payment Service (Port 8084)**
-   - Payment processing gateway
-   - Multiple payment methods (credit card, PayPal, bank transfer)
-   - Payment status tracking
-   - Refund handling
-   - Admin payment management
-
-2. **Discovery Server (Eureka)**
-   - Service registration and discovery
-   - Health checking
-   - Dynamic load balancing
-   - Future-proofing for Kubernetes migration
-
-3. **Advanced Analytics**
-   - Auction statistics dashboard
-   - User bidding patterns
-   - Popular items analysis
-   - Revenue reports
-
-4. **Enhanced Monitoring**
-   - Custom business metrics
-   - Alerting rules
-   - SLA tracking
-   - Performance baselines
-
-5. **Frontend Application**
-   - React/Angular web UI
-   - Mobile app compatibility
-   - Real-time updates (WebSocket)
-   - User dashboard
-
-6. **Advanced Security**
-   - Multi-factor authentication (MFA)
-   - API key management
-   - Role-based endpoint access
-   - Audit logging
-
-7. **Scalability Improvements**
-   - Kubernetes deployment
-   - Auto-scaling policies
-   - Database sharding
-   - Cache optimization
-
----
-
 ## Links and References
 
 ### Repository
-- **GitHub:** [Your GitHub URL]
+- **GitHub:** [\[GitHub URL\]](https://github.com/GiharaNavindu/ec-7204-cloud-project.git)
 - **Main Branch:** `main`
 - **Development Branch:** `develop`
 
@@ -1613,9 +1587,6 @@ ec-7204-cloud-project/
 - **Deployment Guide:** See [Deployment Information](#deployment-information) section
 - **Troubleshooting:** See [Troubleshooting](#troubleshooting) section
 
-### Live Deployment (if available)
-- **API Gateway:** [Azure Container Apps URL]
-- **Grafana Dashboard:** [Azure Monitor URL]
 
 ### Tools & Technologies
 - **Spring Boot:** https://spring.io/projects/spring-boot
