@@ -3,7 +3,7 @@ name: Deploy Microservices to Azure Container Apps
 on:
   push:
     branches:
-      - main
+      - feature/cicd-setup
 
 permissions:
   contents: read
