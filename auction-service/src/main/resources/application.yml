@@ -22,7 +22,7 @@ spring:
   # Merged RabbitMQ configuration here under the single 'spring:' key
   rabbitmq:
     host: ${RABBITMQ_HOST:}
-    port: 5672
+    port: ${RABBITMQ_PORT:5672}
     username: ${RABBITMQ_USERNAME:}
     password: ${RABBITMQ_PASSWORD:}
 
