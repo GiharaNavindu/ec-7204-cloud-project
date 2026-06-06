@@ -1,292 +1,404 @@
-param(
-[string]$ResourceGroupName = 'rg-ruhuna-auction',
-[string]$Location = 'eastus',
-[string]$AcrName = 'acruhunaauction',
-[string]$PostgreSqlAdminUsername = 'pgadmin',
-[switch]$PromptSecrets
-)
+param location string = resourceGroup().location
+param environmentName string = 'env-ruhuna-auction'
+param logAnalyticsWorkspaceName string = 'log-ruhuna-auction'
+param acrLoginServer string
+param acrUsername string
+@secure()
+param acrPassword string
 
-$ErrorActionPreference = 'Stop'
-Set-StrictMode -Version Latest
+param postgresqlServerName string
+param postgresqlAdminUsername string
+@secure()
+param postgresqlAdminPassword string
 
-function Write-Section {
-param([string]$Message)
-Write-Host "`n=== $Message ===" -ForegroundColor Cyan
+param redisCacheName string
+
+@secure()
+param jwtSecret string
+@secure()
+param dbPassword string
+
+param rabbitmqHost string
+param rabbitmqUsername string
+@secure()
+param rabbitmqPassword string
+
+param googleClientId string
+@secure()
+param googleClientSecret string
+param appOAuth2RedirectUri string = ''
+param zipkinUrl string = ''
+
+param imageTag string = 'latest'
+
+// Log Analytics Workspace
+resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
+  name: logAnalyticsWorkspaceName
+  location: location
+  properties: {
+    sku: {
+      name: 'PerGB2018'
+    }
+    retentionInDays: 30
+  }
 }
 
-function Write-Info {
-param([string]$Message)
-Write-Host "  $Message" -ForegroundColor Gray
+// Container App Environment
+resource containerAppEnv 'Microsoft.App/managedEnvironments@2023-05-01' = {
+  name: environmentName
+  location: location
+  properties: {
+    appLogsConfiguration: {
+      destination: 'log-analytics'
+      logAnalyticsConfiguration: {
+        customerId: logAnalyticsWorkspace.properties.customerId
+        sharedKey: logAnalyticsWorkspace.listKeys().primarySharedKey
+      }
+    }
+  }
 }
 
-function Assert-CommandExists {
-param([string]$CommandName)
-if (-not (Get-Command $CommandName -ErrorAction SilentlyContinue)) {
-throw "Required command '$CommandName' was not found. Install it and try again."
-}
-}
-
-function Assert-AcrName {
-param([string]$Name)
-if ($Name -notmatch '^[a-z0-9]{5,50}$') {
-throw "ACR name must be 5-50 characters, lowercase letters and numbers only."
-}
-}
-
-function New-RandomSecret {
-param([int]$ByteCount)
-$bytes = New-Object byte[] $ByteCount
-
-# PowerShell 5.1 compatible random number generation
-$rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
-$rng.GetBytes($bytes)
-$rng.Dispose()
-
-[Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+// PostgreSQL Flexible Server
+resource postgresServer 'Microsoft.DBforPostgreSQL/flexibleServers@2022-12-01' = {
+  name: postgresqlServerName
+  location: location
+  sku: {
+    name: 'Standard_B1ms'
+    tier: 'Burstable'
+  }
+  properties: {
+    administratorLogin: postgresqlAdminUsername
+    administratorLoginPassword: postgresqlAdminPassword
+    version: '16'
+    storage: {
+      storageSizeGB: 128
+    }
+    backup: {
+      backupRetentionDays: 7
+      geoRedundantBackup: 'Disabled'
+    }
+  }
 }
 
-function Convert-SecureStringToPlainText {
-param([System.Security.SecureString]$SecureString)
-$bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecureString)
-try {
-[Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
-}
-finally {
-if ($bstr -ne [IntPtr]::Zero) {
-[Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
-}
-}
+resource postgresFirewall 'Microsoft.DBforPostgreSQL/flexibleServers/firewallRules@2022-12-01' = {
+  parent: postgresServer
+  name: 'AllowAllAzureIPs'
+  properties: {
+    startIpAddress: '0.0.0.0'
+    endIpAddress: '0.0.0.0'
+  }
 }
 
-function Read-OrGenerateSecret {
-param(
-[string]$Prompt,
-[int]$LengthInBytes,
-[switch]$PromptForValue
-)
-
-if ($PromptForValue) {
-$secureValue = Read-Host -AsSecureString -Prompt $Prompt
-if (-not $secureValue) {
-throw "$Prompt cannot be empty."
+// Create Databases
+resource userDb 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2022-12-01' = {
+  parent: postgresServer
+  name: 'user_db'
 }
-return Convert-SecureStringToPlainText -SecureString $secureValue
+resource auctionDb 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2022-12-01' = {
+  parent: postgresServer
+  name: 'auction_db'
 }
-
-return New-RandomSecret -ByteCount $LengthInBytes
+resource bidDb 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2022-12-01' = {
+  parent: postgresServer
+  name: 'bid_db'
 }
-
-function Read-RequiredPlainText {
-param([string]$Prompt)
-$value = Read-Host -Prompt $Prompt
-if ([string]::IsNullOrWhiteSpace($value)) {
-throw "$Prompt cannot be empty."
-}
-return $value.Trim()
+resource notificationDb 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2022-12-01' = {
+  parent: postgresServer
+  name: 'notification_db'
 }
 
-function ConvertTo-CompactJson {
-param([Parameter(Mandatory = $true)]$InputObject)
-$InputObject | ConvertTo-Json -Depth 10 -Compress
+// Redis Cache (Updated to Azure Managed Redis)
+resource redisCache 'Microsoft.Cache/redisEnterprise@2024-09-01' = {
+  name: redisCacheName
+  location: location
+  sku: {
+    name: 'Balanced_B0'
+  }
 }
 
-Assert-CommandExists -CommandName 'az'
-Assert-AcrName -Name $AcrName
-
-Write-Section 'Bootstrap configuration'
-Write-Info "Resource group : $ResourceGroupName"
-Write-Info "Region         : $Location"
-Write-Info "ACR name       : $AcrName"
-
-$subscriptionId = az account show --query id --output tsv 2>$null
-if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($subscriptionId)) {
-throw 'You must be logged in to Azure CLI before running this script.'
+resource redisDb 'Microsoft.Cache/redisEnterprise/databases@2024-09-01' = {
+  parent: redisCache
+  name: 'default'
+  properties: {
+    clientProtocol: 'Plaintext'
+    evictionPolicy: 'NoEviction'
+    clusteringPolicy: 'EnterpriseCluster'
+  }
 }
 
-Write-Info "Subscription   : $subscriptionId"
+// Container Apps
+var registrySecretName = 'registry-password'
 
-Write-Section 'Secrets and dependency inputs'
-$postgresPassword = Read-OrGenerateSecret -Prompt 'Enter PostgreSQL password for the Azure Flexible Server and application DB users' -LengthInBytes 48 -PromptForValue:$PromptSecrets
-$jwtSecret = Read-OrGenerateSecret -Prompt 'Enter JWT secret for all services' -LengthInBytes 64 -PromptForValue:$PromptSecrets
+// Helper for common env vars
+var commonEnv = [
+  { name: 'JWT_SECRET', secretRef: 'jwt-secret' }
+  { name: 'ZIPKIN_URL', value: zipkinUrl }
+]
 
-$rabbitmqHost = Read-RequiredPlainText -Prompt 'Enter RabbitMQ host for the cloud deployment'
-$rabbitmqPassword = Read-OrGenerateSecret -Prompt 'Enter RabbitMQ password' -LengthInBytes 32 -PromptForValue:$PromptSecrets
-$googleClientId = Read-RequiredPlainText -Prompt 'Enter Google OAuth Client ID'
-$googleClientSecret = Read-OrGenerateSecret -Prompt 'Enter Google OAuth Client Secret' -LengthInBytes 32 -PromptForValue:$PromptSecrets
-$appOAuth2RedirectUri = Read-Host -Prompt 'Enter OAuth2 redirect URI for the gateway/public frontend callback (press Enter to skip)'
-$zipkinUrl = Read-Host -Prompt 'Enter Zipkin URL (press Enter to skip)'
-
-$postgresqlServerName = ('pg-' + $AcrName).ToLowerInvariant()
-$redisCacheName = ('redis-' + $AcrName).ToLowerInvariant()
-
-Write-Section 'Creating base Azure infrastructure'
-az group create --name $ResourceGroupName --location $Location --output none
-if ($LASTEXITCODE -ne 0) { throw "Failed to create Azure Resource Group." }
-
-Write-Info 'Registering Azure providers used by the Bicep template...'
-$providers = @(
-'Microsoft.App',
-'Microsoft.OperationalInsights',
-'Microsoft.Network',
-'Microsoft.DBforPostgreSQL',
-'Microsoft.Cache',
-'Microsoft.ManagedIdentity',
-'Microsoft.ContainerRegistry',
-'Microsoft.Insights'
-)
-
-foreach ($provider in $providers) {
-az provider register --namespace $provider --wait --output none
+// User Service
+resource userService 'Microsoft.App/containerApps@2023-05-01' = {
+  name: 'user-service'
+  location: location
+  properties: {
+    managedEnvironmentId: containerAppEnv.id
+    configuration: {
+      secrets: [
+        { name: registrySecretName, value: acrPassword }
+        { name: 'db-password', value: dbPassword }
+        { name: 'jwt-secret', value: jwtSecret }
+        { name: 'google-client-secret', value: googleClientSecret }
+      ]
+      registries: [
+        {
+          server: acrLoginServer
+          username: acrUsername
+          passwordSecretRef: registrySecretName
+        }
+      ]
+      ingress: {
+        external: false
+        targetPort: 8081
+        transport: 'auto'
+      }
+    }
+    template: {
+      containers: [
+        {
+          name: 'user-service'
+          image: '${acrLoginServer}/user-service:${imageTag}'
+          env: concat(commonEnv, [
+            {
+              name: 'DB_URL'
+              value: 'jdbc:postgresql://${postgresServer.properties.fullyQualifiedDomainName}:5432/user_db'
+            }
+            { name: 'DB_USERNAME', value: postgresqlAdminUsername }
+            { name: 'DB_PASSWORD', secretRef: 'db-password' }
+            { name: 'GOOGLE_CLIENT_ID', value: googleClientId }
+            { name: 'GOOGLE_CLIENT_SECRET', secretRef: 'google-client-secret' }
+            { name: 'APP_OAUTH2_REDIRECT_URI', value: appOAuth2RedirectUri }
+          ])
+          resources: {
+            cpu: json('0.25')
+            memory: '0.5Gi'
+          }
+        }
+      ]
+    }
+  }
 }
 
-Write-Info 'Creating Azure Container Registry with Basic SKU and admin access...'
-$acrLookup = az acr show --name $AcrName --resource-group $ResourceGroupName --output none 2>$null
-if ($LASTEXITCODE -ne 0) {
-az acr create --name $AcrName --resource-group $ResourceGroupName --sku Basic --admin-enabled true --output none
-if ($LASTEXITCODE -ne 0) { throw "Failed to create Azure Container Registry." }
-} else {
-az acr update --name $AcrName --resource-group $ResourceGroupName --admin-enabled true --output none
-if ($LASTEXITCODE -ne 0) { throw "Failed to update Azure Container Registry." }
+// Auction Service
+resource auctionService 'Microsoft.App/containerApps@2023-05-01' = {
+  name: 'auction-service'
+  location: location
+  properties: {
+    managedEnvironmentId: containerAppEnv.id
+    configuration: {
+      secrets: [
+        { name: registrySecretName, value: acrPassword }
+        { name: 'db-password', value: dbPassword }
+        { name: 'jwt-secret', value: jwtSecret }
+      ]
+      registries: [
+        {
+          server: acrLoginServer
+          username: acrUsername
+          passwordSecretRef: registrySecretName
+        }
+      ]
+      ingress: {
+        external: false
+        targetPort: 8082
+        transport: 'auto'
+      }
+    }
+    template: {
+      containers: [
+        {
+          name: 'auction-service'
+          image: '${acrLoginServer}/auction-service:${imageTag}'
+          env: concat(commonEnv, [
+            {
+              name: 'DB_URL'
+              value: 'jdbc:postgresql://${postgresServer.properties.fullyQualifiedDomainName}:5432/auction_db'
+            }
+            { name: 'DB_USERNAME', value: postgresqlAdminUsername }
+            { name: 'DB_PASSWORD', secretRef: 'db-password' }
+            { name: 'RABBITMQ_PORT', value: '5671' }
+          ])
+          resources: {
+            cpu: json('0.25')
+            memory: '0.5Gi'
+          }
+        }
+      ]
+    }
+  }
 }
 
-$acrLoginServer = az acr show --name $AcrName --resource-group $ResourceGroupName --query loginServer --output tsv
-if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($acrLoginServer)) {
-throw 'Unable to resolve the ACR login server.'
+// Bid Service
+resource bidService 'Microsoft.App/containerApps@2023-05-01' = {
+  name: 'bid-service'
+  location: location
+  properties: {
+    managedEnvironmentId: containerAppEnv.id
+    configuration: {
+      secrets: [
+        { name: registrySecretName, value: acrPassword }
+        { name: 'db-password', value: dbPassword }
+        { name: 'jwt-secret', value: jwtSecret }
+        { name: 'rabbitmq-password', value: rabbitmqPassword }
+      ]
+      registries: [
+        {
+          server: acrLoginServer
+          username: acrUsername
+          passwordSecretRef: registrySecretName
+        }
+      ]
+      ingress: {
+        external: false
+        targetPort: 8083
+        transport: 'auto'
+      }
+    }
+    template: {
+      containers: [
+        {
+          name: 'bid-service'
+          image: '${acrLoginServer}/bid-service:${imageTag}'
+          env: concat(commonEnv, [
+            {
+              name: 'DB_URL'
+              value: 'jdbc:postgresql://${postgresServer.properties.fullyQualifiedDomainName}:5432/bid_db'
+            }
+            { name: 'DB_USERNAME', value: postgresqlAdminUsername }
+            { name: 'DB_PASSWORD', secretRef: 'db-password' }
+            { name: 'AUCTION_SERVICE_URL', value: 'http://${auctionService.properties.configuration.ingress.fqdn}' }
+            { name: 'RABBITMQ_HOST', value: rabbitmqHost }
+            { name: 'RABBITMQ_PORT', value: '5671' }
+            { name: 'RABBITMQ_USERNAME', value: rabbitmqUsername }
+            { name: 'RABBITMQ_PASSWORD', secretRef: 'rabbitmq-password' }
+          ])
+          resources: {
+            cpu: json('0.25')
+            memory: '0.5Gi'
+          }
+        }
+      ]
+    }
+  }
 }
 
-$acrCredentials = az acr credential show --name $AcrName --resource-group $ResourceGroupName --output json | ConvertFrom-Json
-if ($LASTEXITCODE -ne 0) {
-throw 'Unable to read ACR credentials.'
+// Notification Service
+resource notificationService 'Microsoft.App/containerApps@2023-05-01' = {
+  name: 'notification-service'
+  location: location
+  properties: {
+    managedEnvironmentId: containerAppEnv.id
+    configuration: {
+      secrets: [
+        { name: registrySecretName, value: acrPassword }
+        { name: 'db-password', value: dbPassword }
+        { name: 'jwt-secret', value: jwtSecret }
+        { name: 'rabbitmq-password', value: rabbitmqPassword }
+      ]
+      registries: [
+        {
+          server: acrLoginServer
+          username: acrUsername
+          passwordSecretRef: registrySecretName
+        }
+      ]
+      ingress: {
+        external: false
+        targetPort: 8085
+        transport: 'auto'
+      }
+    }
+    template: {
+      containers: [
+        {
+          name: 'notification-service'
+          image: '${acrLoginServer}/notification-service:${imageTag}'
+          env: concat(commonEnv, [
+            {
+              name: 'NOTIFICATION_DB_URL'
+              value: 'jdbc:postgresql://${postgresServer.properties.fullyQualifiedDomainName}:5432/notification_db'
+            }
+            { name: 'DB_USERNAME', value: postgresqlAdminUsername }
+            { name: 'DB_PASSWORD', secretRef: 'db-password' }
+            { name: 'RABBITMQ_HOST', value: rabbitmqHost }
+            { name: 'RABBITMQ_PORT', value: '5671' }
+            { name: 'RABBITMQ_USERNAME', value: rabbitmqUsername }
+            { name: 'RABBITMQ_PASSWORD', secretRef: 'rabbitmq-password' }
+          ])
+          resources: {
+            cpu: json('0.25')
+            memory: '0.5Gi'
+          }
+        }
+      ]
+    }
+  }
 }
 
-$acrUsername = $acrCredentials.username
-$acrPassword = $acrCredentials.passwords[0].value
-
-Write-Section 'Cloud image builds via Azure Container Registry'
-$services = @(
-'api-gateway',
-'user-service',
-'auction-service',
-'bid-service',
-'notification-service'
-)
-
-foreach ($service in $services) {
-$dockerfilePath = "$service/Dockerfile"
-if (-not (Test-Path $dockerfilePath)) {
-throw "Missing Dockerfile for service '$service' at '$dockerfilePath'."
+// API Gateway
+resource apiGateway 'Microsoft.App/containerApps@2023-05-01' = {
+  name: 'api-gateway'
+  location: location
+  properties: {
+    managedEnvironmentId: containerAppEnv.id
+    configuration: {
+      secrets: [
+        { name: registrySecretName, value: acrPassword }
+        { name: 'jwt-secret', value: jwtSecret }
+        { name: 'redis-password', value: redisDb.listKeys().primaryKey }
+      ]
+      registries: [
+        {
+          server: acrLoginServer
+          username: acrUsername
+          passwordSecretRef: registrySecretName
+        }
+      ]
+      ingress: {
+        external: true
+        targetPort: 8080
+        transport: 'auto'
+      }
+    }
+    template: {
+      containers: [
+        {
+          name: 'api-gateway'
+          image: '${acrLoginServer}/api-gateway:${imageTag}'
+          env: concat(commonEnv, [
+            { name: 'USER_SERVICE_URL', value: 'http://${userService.properties.configuration.ingress.fqdn}' }
+            { name: 'AUCTION_SERVICE_URL', value: 'http://${auctionService.properties.configuration.ingress.fqdn}' }
+            { name: 'BID_SERVICE_URL', value: 'http://${bidService.properties.configuration.ingress.fqdn}' }
+            {
+              name: 'NOTIFICATION_SERVICE_URL'
+              value: 'http://${notificationService.properties.configuration.ingress.fqdn}'
+            }
+            { name: 'REDIS_HOST', value: redisCache.properties.hostName }
+            { name: 'REDIS_PORT', value: string(redisDb.properties.port) }
+            { name: 'REDIS_PASSWORD', secretRef: 'redis-password' }
+          ])
+          resources: {
+            cpu: json('0.25')
+            memory: '0.5Gi'
+          }
+        }
+      ]
+    }
+  }
 }
 
-Write-Info "Building $service in Azure using $dockerfilePath"
-& az acr build --registry $AcrName --image "$service`:latest" --file $dockerfilePath .
-if ($LASTEXITCODE -ne 0) {
-throw "Azure Container Registry build failed for '$service'."
-}
-}
-
-Write-Section 'Deploying infrastructure with Bicep'
-$templateFile = 'infra/container-apps.bicep'
-if (-not (Test-Path $templateFile)) {
-throw "Bicep template not found at '$templateFile'."
-}
-
-$deploymentName = "bootstrap-aca-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
-$deploymentParameters = @(
-"location=$Location"
-"acrLoginServer=$acrLoginServer"
-"acrUsername=$acrUsername"
-"acrPassword=$acrPassword"
-"jwtSecret=$jwtSecret"
-"dbPassword=$postgresPassword"
-"rabbitmqHost=$rabbitmqHost"
-"rabbitmqPassword=$rabbitmqPassword"
-"googleClientId=$googleClientId"
-"googleClientSecret=$googleClientSecret"
-"appOAuth2RedirectUri=$appOAuth2RedirectUri"
-"postgresqlServerName=$postgresqlServerName"
-"postgresqlAdminUsername=$PostgreSqlAdminUsername"
-"postgresqlAdminPassword=$postgresPassword"
-"redisCacheName=$redisCacheName"
-"zipkinUrl=$zipkinUrl"
-'imageTag=latest'
-)
-
-$deploymentResult = & az deployment group create `
---name $deploymentName `
---resource-group $ResourceGroupName `
---template-file $templateFile `
---parameters @deploymentParameters `
---output json | ConvertFrom-Json
-
-if ($LASTEXITCODE -ne 0) {
-throw 'Bicep deployment failed.'
-}
-
-$outputs = $deploymentResult.properties.outputs
-
-Write-Section 'Deployment outputs'
-if ($outputs.apiGatewayPublicUrl) {
-Write-Info "API Gateway public URL : $($outputs.apiGatewayPublicUrl.value)"
-}
-if ($outputs.userServiceInternalFqdn) {
-Write-Info "User Service FQDN      : $($outputs.userServiceInternalFqdn.value)"
-}
-if ($outputs.auctionServiceInternalFqdn) {
-Write-Info "Auction Service FQDN   : $($outputs.auctionServiceInternalFqdn.value)"
-}
-if ($outputs.bidServiceInternalFqdn) {
-Write-Info "Bid Service FQDN       : $($outputs.bidServiceInternalFqdn.value)"
-}
-if ($outputs.notificationServiceInternalFqdn) {
-Write-Info "Notification FQDN      : $($outputs.notificationServiceInternalFqdn.value)"
-}
-if ($outputs.postgresqlFqdn) {
-Write-Info "PostgreSQL FQDN        : $($outputs.postgresqlFqdn.value)"
-}
-if ($outputs.redisCacheHostName) {
-Write-Info "Redis host name        : $($outputs.redisCacheHostName.value)"
-}
-
-Write-Section 'GitHub repository setup'
-$servicePrincipalName = "sp-ruhuna-auction-$AcrName"
-$servicePrincipalScope = "/subscriptions/$subscriptionId/resourceGroups/$ResourceGroupName"
-$spResult = & az ad sp create-for-rbac `
---name $servicePrincipalName `
---role Contributor `
---scopes $servicePrincipalScope `
---output json | ConvertFrom-Json
-
-if ($LASTEXITCODE -ne 0) {
-throw 'Failed to create the GitHub deployment service principal.'
-}
-
-$azureCredentials = [ordered]@{
-clientId = $spResult.appId
-clientSecret = $spResult.password
-subscriptionId = $subscriptionId
-tenantId = $spResult.tenant
-resourceManagerEndpointUrl = 'https://management.azure.com/'
-activeDirectoryEndpointUrl = 'https://login.microsoftonline.com/'
-}
-
-$azureCredentialsJson = ConvertTo-CompactJson -InputObject $azureCredentials
-
-Write-Host ''
-Write-Host 'Copy these into GitHub repository Secrets:' -ForegroundColor Cyan
-Write-Host '  AZURE_CREDENTIALS =' -ForegroundColor Yellow
-Write-Host "  $azureCredentialsJson" -ForegroundColor White
-Write-Host "  ACR_LOGIN_SERVER = $acrLoginServer" -ForegroundColor Yellow
-Write-Host "  ACR_USERNAME     = $acrUsername" -ForegroundColor Yellow
-Write-Host "  ACR_PASSWORD     = $acrPassword" -ForegroundColor Yellow
-
-Write-Host ''
-Write-Host 'Copy these into GitHub repository Variables:' -ForegroundColor Cyan
-Write-Host "  AZURE_RESOURCE_GROUP                          = $ResourceGroupName" -ForegroundColor Yellow
-Write-Host "  AZURE_API_GATEWAY_CONTAINER_APP_NAME          = api-gateway" -ForegroundColor Yellow
-Write-Host "  AZURE_USER_SERVICE_CONTAINER_APP_NAME         = user-service" -ForegroundColor Yellow
-Write-Host "  AZURE_AUCTION_SERVICE_CONTAINER_APP_NAME      = auction-service" -ForegroundColor Yellow
-Write-Host "  AZURE_BID_SERVICE_CONTAINER_APP_NAME          = bid-service" -ForegroundColor Yellow
-Write-Host "  AZURE_NOTIFICATION_SERVICE_CONTAINER_APP_NAME = notification-service" -ForegroundColor Yellow
-
-Write-Host ''
-Write-Host 'Bootstrap complete. Your next pushes can use .github/workflows/deploy.yml directly.' -ForegroundColor Green
+output apiGatewayPublicUrl string = 'https://${apiGateway.properties.configuration.ingress.fqdn}'
+output userServiceInternalFqdn string = userService.properties.configuration.ingress.fqdn
+output auctionServiceInternalFqdn string = auctionService.properties.configuration.ingress.fqdn
+output bidServiceInternalFqdn string = bidService.properties.configuration.ingress.fqdn
+output notificationServiceInternalFqdn string = notificationService.properties.configuration.ingress.fqdn
+output postgresqlFqdn string = postgresServer.properties.fullyQualifiedDomainName
+output redisCacheHostName string = redisCache.properties.hostName
