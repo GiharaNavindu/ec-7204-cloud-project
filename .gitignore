@@ -2,3 +2,12 @@
 *.log
 hs_err_pid*.log
 replay_pid*.log
+target/
+**/target/
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+.DS_Store
