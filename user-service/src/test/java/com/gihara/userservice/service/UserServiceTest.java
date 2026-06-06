@@ -1,11 +1,11 @@
 package com.gihara.userservice.service;
 
+import java.time.Instant;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -19,6 +19,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import com.gihara.userservice.dto.LoginResponse;
+import com.gihara.userservice.dto.TokenRefreshRequest;
+import com.gihara.userservice.dto.TokenRefreshResponse;
 import com.gihara.userservice.dto.UserLoginRequest;
 import com.gihara.userservice.dto.UserRegistrationRequest;
 import com.gihara.userservice.entity.RefreshToken;
@@ -122,5 +124,41 @@ class UserServiceTest {
         assertEquals("jwt-token", response.getAccessToken());
         assertEquals("refresh-token", response.getRefreshToken());
         assertEquals(86400000L, response.getExpiresIn());
+    }
+
+    @Test
+    void refreshToken_shouldReturnRotatedTokens_whenRefreshTokenIsValid() {
+        User user = User.builder()
+                .userId(1L)
+                .email("jane@example.com")
+                .userRole(UserRole.USER)
+                .build();
+        RefreshToken refreshToken = RefreshToken.builder()
+                .token("refresh-token")
+                .user(user)
+                .expiryDate(Instant.now().plusSeconds(60))
+                .build();
+        RefreshToken rotatedRefreshToken = RefreshToken.builder().token("new-refresh-token").build();
+
+        when(refreshTokenService.findByToken("refresh-token")).thenReturn(Optional.of(refreshToken));
+        when(refreshTokenService.verifyExpiration(refreshToken)).thenReturn(refreshToken);
+        when(jwtProvider.generateToken("jane@example.com", 1L, UserRole.USER)).thenReturn("new-access-token");
+        when(refreshTokenService.createRefreshToken(1L)).thenReturn(rotatedRefreshToken);
+
+        TokenRefreshResponse response = userService.refreshToken(new TokenRefreshRequest("refresh-token"));
+
+        assertEquals("new-access-token", response.getAccessToken());
+        assertEquals("new-refresh-token", response.getRefreshToken());
+        assertEquals("Bearer", response.getTokenType());
+    }
+
+    @Test
+    void refreshToken_shouldThrow_whenTokenDoesNotExist() {
+        when(refreshTokenService.findByToken("missing-token")).thenReturn(Optional.empty());
+
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> userService.refreshToken(new TokenRefreshRequest("missing-token")));
+
+        assertEquals("Refresh token is not in database!", ex.getMessage());
     }
 }
