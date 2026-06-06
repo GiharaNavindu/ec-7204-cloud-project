@@ -3,10 +3,10 @@ FROM maven:3.9-eclipse-temurin-21-alpine AS build
 WORKDIR /workspace
 
 COPY user-service/pom.xml .
-RUN --mount=type=cache,target=/root/.m2 mvn -B -DskipTests dependency:go-offline
+RUN mvn -B dependency:go-offline
 
 COPY user-service/src ./src
-RUN --mount=type=cache,target=/root/.m2 mvn -B -DskipTests package && \
+RUN mvn -B -DskipTests clean package && \
     mv target/*.jar target/app.jar
 
 FROM eclipse-temurin:21-jre-alpine AS runtime
