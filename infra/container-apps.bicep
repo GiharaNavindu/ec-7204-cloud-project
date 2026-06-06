@@ -122,16 +122,6 @@ resource redisCache 'Microsoft.Cache/redis@2023-08-01' = {
   }
 }
 
-resource redisDb 'Microsoft.Cache/redisEnterprise/databases@2024-09-01' = {
-  parent: redisCache
-  name: 'default'
-  properties: {
-    clientProtocol: 'Plaintext'
-    evictionPolicy: 'NoEviction'
-    clusteringPolicy: 'EnterpriseCluster'
-  }
-}
-
 // Container Apps
 var registrySecretName = 'registry-password'
 
@@ -388,7 +378,7 @@ resource apiGateway 'Microsoft.App/containerApps@2023-05-01' = {
               value: 'http://${notificationService.properties.configuration.ingress.fqdn}'
             }
             { name: 'REDIS_HOST', value: redisCache.properties.hostName }
-            { name: 'REDIS_PORT', value: string(redisDb.properties.port) }
+            { name: 'REDIS_PORT', value: string(redisCache.properties.sslPort) }
             { name: 'REDIS_PASSWORD', secretRef: 'redis-password' }
           ])
           resources: {
