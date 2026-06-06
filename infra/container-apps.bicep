@@ -384,6 +384,10 @@ resource apiGateway 'Microsoft.App/containerApps@2023-05-01' = {
             { name: 'REDIS_HOST', value: redisCache.properties.hostName }
             { name: 'REDIS_PORT', value: string(redisDb.properties.port) }
             { name: 'REDIS_PASSWORD', secretRef: 'redis-password' }
+            { name: 'SPRING_DATA_REDIS_HOST', value: redisCache.properties.hostName }
+            { name: 'SPRING_DATA_REDIS_PORT', value: string(redisDb.properties.port) }
+            { name: 'SPRING_DATA_REDIS_PASSWORD', secretRef: 'redis-password' }
+            { name: 'SPRING_DATA_REDIS_SSL_ENABLED', value: 'true' }
           ])
           resources: {
             cpu: json('0.25')
