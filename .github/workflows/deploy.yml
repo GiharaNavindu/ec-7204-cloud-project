@@ -12,14 +12,12 @@ concurrency:
   group: deploy-main
   cancel-in-progress: true
 
-# Define global variables so all jobs can easily access them
 env:
   IMAGE_TAG: ${{ github.sha }}
   AZURE_RESOURCE_GROUP: rg-ruhuna-auction
   AZURE_LOCATION: centralus
 
 jobs:
-  # 1. NEW JOB: Ensure Resource Group and ACR exist before building
   ensure-base-infra:
     name: Ensure Base Infrastructure
     runs-on: ubuntu-latest
@@ -37,23 +35,18 @@ jobs:
           ACR_NAME="${{ secrets.ACR_LOGIN_SERVER }}"
           ACR_NAME="${ACR_NAME%%.azurecr.io}"
 
-          echo "Ensuring Resource Group '$AZURE_RESOURCE_GROUP' exists in '$AZURE_LOCATION'..."
-          az group create --name "$AZURE_RESOURCE_GROUP" --location "$AZURE_LOCATION"
+          echo "==> Ensuring Resource Group '$AZURE_RESOURCE_GROUP' exists in '$AZURE_LOCATION'..."
+          az group create --name "$AZURE_RESOURCE_GROUP" --location "$AZURE_LOCATION" -o none
 
-          echo "Ensuring Container Registry '$ACR_NAME' exists..."
-          az acr create \
-            --resource-group "$AZURE_RESOURCE_GROUP" \
-            --name "$ACR_NAME" \
-            --sku Basic \
-            --admin-enabled true
+          echo "==> Ensuring Container Registry '$ACR_NAME' exists..."
+          az acr create --resource-group "$AZURE_RESOURCE_GROUP" --name "$ACR_NAME" --sku Basic --admin-enabled true -o none
 
-  # 2. Build images (Waits for ensure-base-infra to finish)
   build-and-push:
     name: Build and push ${{ matrix.service }}
     runs-on: ubuntu-latest
     needs: ensure-base-infra
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         service:
           - api-gateway
@@ -77,14 +70,14 @@ jobs:
 
           ACR_NAME="${{ secrets.ACR_LOGIN_SERVER }}"
           ACR_NAME="${ACR_NAME%%.azurecr.io}"
-
+          
+          echo "==> Building and pushing ${{ matrix.service }}:${IMAGE_TAG} to $ACR_NAME..."
           az acr build \
             --registry "$ACR_NAME" \
             --image "${{ matrix.service }}:${IMAGE_TAG}" \
             --file "${{ matrix.service }}/Dockerfile" \
             .
 
-  # 3. Deploy the rest of the infrastructure and apps (Waits for build-and-push)
   deploy-infrastructure:
     name: Deploy Container Apps
     runs-on: ubuntu-latest
@@ -103,10 +96,37 @@ jobs:
         run: |
           set -euo pipefail
 
+          echo "==> Preparing parameters and safe fallbacks..."
           POSTGRESQL_SERVER_NAME="${POSTGRESQL_SERVER_NAME:-pg-ruhuna-auction}"
           POSTGRESQL_ADMIN_USERNAME="${POSTGRESQL_ADMIN_USERNAME:-pgadmin}"
           REDIS_CACHE_NAME="${REDIS_CACHE_NAME:-redis-ruhuna-auction}"
 
+          # Safely handle missing GitHub Secrets to prevent empty-string crashes
+          RAB_HOST="${{ secrets.RABBITMQ_HOST }}"
+          RAB_HOST="${RAB_HOST:-toucan-01.lmq.cloudamqp.com}"
+          
+          RAB_USER="${{ secrets.RABBITMQ_USERNAME }}"
+          RAB_USER="${RAB_USER:-guest}"
+          
+          RAB_PASS="${{ secrets.RABBITMQ_PASSWORD }}"
+          RAB_PASS="${RAB_PASS:-guest}"
+          
+          G_CLIENT="${{ secrets.GOOGLE_CLIENT_ID }}"
+          G_CLIENT="${G_CLIENT:-841352140356-ghgm9hr464kd5opehretkhb0t33g2113.apps.googleusercontent.com}"
+          
+          G_SECRET="${{ secrets.GOOGLE_CLIENT_SECRET }}"
+          G_SECRET="${G_SECRET:-default-secret-key}"
+          
+          REDIRECT_URI="${{ secrets.APP_OAUTH2_REDIRECT_URI }}"
+          REDIRECT_URI="${REDIRECT_URI:-/index.html}"
+
+          echo "==> Fetching dynamic ACR credentials directly from Azure..."
+          ACR_NAME="${{ secrets.ACR_LOGIN_SERVER }}"
+          ACR_NAME="${ACR_NAME%%.azurecr.io}"
+          DYNAMIC_ACR_USERNAME=$(az acr credential show --name "$ACR_NAME" --query "username" -o tsv)
+          DYNAMIC_ACR_PASSWORD=$(az acr credential show --name "$ACR_NAME" --query "passwords[0].value" -o tsv)
+
+          echo "==> Starting Bicep deployment for $IMAGE_TAG..."
           az deployment group create \
             --name "deploy-${IMAGE_TAG}" \
             --resource-group "$AZURE_RESOURCE_GROUP" \
@@ -114,19 +134,21 @@ jobs:
             --parameters \
               location="$AZURE_LOCATION" \
               acrLoginServer="${{ secrets.ACR_LOGIN_SERVER }}" \
-              acrUsername="${{ secrets.ACR_USERNAME }}" \
-              acrPassword="${{ secrets.ACR_PASSWORD }}" \
+              acrUsername="$DYNAMIC_ACR_USERNAME" \
+              acrPassword="$DYNAMIC_ACR_PASSWORD" \
               postgresqlServerName="$POSTGRESQL_SERVER_NAME" \
               postgresqlAdminUsername="$POSTGRESQL_ADMIN_USERNAME" \
               postgresqlAdminPassword="${{ secrets.DB_PASSWORD }}" \
               redisCacheName="$REDIS_CACHE_NAME" \
               jwtSecret="${{ secrets.JWT_SECRET }}" \
               dbPassword="${{ secrets.DB_PASSWORD }}" \
-              rabbitmqHost="${{ secrets.RABBITMQ_HOST }}" \
-              rabbitmqUsername="${{ secrets.RABBITMQ_USERNAME }}" \
-              rabbitmqPassword="${{ secrets.RABBITMQ_PASSWORD }}" \
-              googleClientId="${{ secrets.GOOGLE_CLIENT_ID }}" \
-              googleClientSecret="${{ secrets.GOOGLE_CLIENT_SECRET }}" \
-              appOAuth2RedirectUri="${{ secrets.APP_OAUTH2_REDIRECT_URI }}" \
+              rabbitmqHost="$RAB_HOST" \
+              rabbitmqUsername="$RAB_USER" \
+              rabbitmqPassword="$RAB_PASS" \
+              googleClientId="$G_CLIENT" \
+              googleClientSecret="$G_SECRET" \
+              appOAuth2RedirectUri="$REDIRECT_URI" \
               zipkinUrl="${{ secrets.ZIPKIN_URL }}" \
               imageTag="$IMAGE_TAG"
+              
+          echo "==> Deployment fully completed!"
