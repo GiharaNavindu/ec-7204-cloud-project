@@ -118,7 +118,7 @@ jobs:
               acrPassword="${{ secrets.ACR_PASSWORD }}" \
               postgresqlServerName="$POSTGRESQL_SERVER_NAME" \
               postgresqlAdminUsername="$POSTGRESQL_ADMIN_USERNAME" \
-              postgresqlAdminPassword="${{ secrets.POSTGRESQL_ADMIN_PASSWORD }}" \
+              postgresqlAdminPassword="${{ secrets.DB_PASSWORD }}" \
               redisCacheName="$REDIS_CACHE_NAME" \
               jwtSecret="${{ secrets.JWT_SECRET }}" \
               dbPassword="${{ secrets.DB_PASSWORD }}" \

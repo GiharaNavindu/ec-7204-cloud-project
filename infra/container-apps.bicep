@@ -107,12 +107,18 @@ resource notificationDb 'Microsoft.DBforPostgreSQL/flexibleServers/databases@202
   name: 'notification_db'
 }
 
-// Redis Cache (Updated to Azure Managed Redis)
-resource redisCache 'Microsoft.Cache/redisEnterprise@2024-09-01' = {
+// Redis Cache (Standard Tier for Universal Regional Support)
+resource redisCache 'Microsoft.Cache/redis@2023-08-01' = {
   name: redisCacheName
   location: location
-  sku: {
-    name: 'Balanced_B0'
+  properties: {
+    sku: {
+      name: 'Basic'
+      family: 'C'
+      capacity: 0
+    }
+    enableNonSslPort: true
+    minimumTlsVersion: '1.2'
   }
 }
 
@@ -353,7 +359,7 @@ resource apiGateway 'Microsoft.App/containerApps@2023-05-01' = {
       secrets: [
         { name: registrySecretName, value: acrPassword }
         { name: 'jwt-secret', value: jwtSecret }
-        { name: 'redis-password', value: redisDb.listKeys().primaryKey }
+        { name: 'redis-password', value: redisCache.listKeys().primaryKey }
       ]
       registries: [
         {
