@@ -107,18 +107,22 @@ resource notificationDb 'Microsoft.DBforPostgreSQL/flexibleServers/databases@202
   name: 'notification_db'
 }
 
-// Redis Cache (Standard Tier for Universal Regional Support)
-resource redisCache 'Microsoft.Cache/redis@2023-08-01' = {
+// Redis Cache (Azure Managed Redis - Supported 2024-10-01 API)
+resource redisCache 'Microsoft.Cache/redisEnterprise@2024-10-01' = {
   name: redisCacheName
   location: location
+  sku: {
+    name: 'Balanced_B0'
+  }
+}
+
+resource redisDb 'Microsoft.Cache/redisEnterprise/databases@2024-10-01' = {
+  parent: redisCache
+  name: 'default'
   properties: {
-    sku: {
-      name: 'Basic'
-      family: 'C'
-      capacity: 0
-    }
-    enableNonSslPort: true
-    minimumTlsVersion: '1.2'
+    clientProtocol: 'Encrypted'
+    evictionPolicy: 'NoEviction'
+    clusteringPolicy: 'EnterpriseCluster'
   }
 }
 
@@ -349,7 +353,7 @@ resource apiGateway 'Microsoft.App/containerApps@2023-05-01' = {
       secrets: [
         { name: registrySecretName, value: acrPassword }
         { name: 'jwt-secret', value: jwtSecret }
-        { name: 'redis-password', value: redisCache.listKeys().primaryKey }
+        { name: 'redis-password', value: redisDb.listKeys().primaryKey }
       ]
       registries: [
         {
@@ -378,10 +382,10 @@ resource apiGateway 'Microsoft.App/containerApps@2023-05-01' = {
               value: 'http://${notificationService.properties.configuration.ingress.fqdn}'
             }
             { name: 'REDIS_HOST', value: redisCache.properties.hostName }
-            { name: 'REDIS_PORT', value: string(redisCache.properties.sslPort) }
+            { name: 'REDIS_PORT', value: string(redisDb.properties.port) }
             { name: 'REDIS_PASSWORD', secretRef: 'redis-password' }
             { name: 'SPRING_DATA_REDIS_HOST', value: redisCache.properties.hostName }
-            { name: 'SPRING_DATA_REDIS_PORT', value: string(redisCache.properties.sslPort) }
+            { name: 'SPRING_DATA_REDIS_PORT', value: string(redisDb.properties.port) }
             { name: 'SPRING_DATA_REDIS_PASSWORD', secretRef: 'redis-password' }
             { name: 'SPRING_DATA_REDIS_SSL_ENABLED', value: 'true' }
           ])
