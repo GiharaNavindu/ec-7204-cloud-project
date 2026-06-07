@@ -274,7 +274,7 @@ resource bidService 'Microsoft.App/containerApps@2023-05-01' = {
             }
             { name: 'DB_USERNAME', value: postgresqlAdminUsername }
             { name: 'DB_PASSWORD', secretRef: 'db-password' }
-            { name: 'AUCTION_SERVICE_URL', value: 'http://${auctionService.properties.configuration.ingress.fqdn}' }
+            { name: 'AUCTION_SERVICE_URL', value: 'https://${auctionService.properties.configuration.ingress.fqdn}' } // Fixed protocol here
             { name: 'RABBITMQ_HOST', value: rabbitmqHost }
             { name: 'RABBITMQ_PORT', value: '5671' }
             { name: 'RABBITMQ_USERNAME', value: rabbitmqUsername }
@@ -374,12 +374,12 @@ resource apiGateway 'Microsoft.App/containerApps@2023-05-01' = {
           name: 'api-gateway'
           image: '${acrLoginServer}/api-gateway:${imageTag}'
           env: concat(commonEnv, [
-            { name: 'USER_SERVICE_URL', value: 'http://${userService.properties.configuration.ingress.fqdn}' }
-            { name: 'AUCTION_SERVICE_URL', value: 'http://${auctionService.properties.configuration.ingress.fqdn}' }
-            { name: 'BID_SERVICE_URL', value: 'http://${bidService.properties.configuration.ingress.fqdn}' }
+            { name: 'USER_SERVICE_URL', value: 'https://${userService.properties.configuration.ingress.fqdn}' } // Fixed protocol here
+            { name: 'AUCTION_SERVICE_URL', value: 'https://${auctionService.properties.configuration.ingress.fqdn}' } // Fixed protocol here
+            { name: 'BID_SERVICE_URL', value: 'https://${bidService.properties.configuration.ingress.fqdn}' } // Fixed protocol here
             {
               name: 'NOTIFICATION_SERVICE_URL'
-              value: 'http://${notificationService.properties.configuration.ingress.fqdn}'
+              value: 'https://${notificationService.properties.configuration.ingress.fqdn}' // Fixed protocol here
             }
             { name: 'REDIS_HOST', value: redisCache.properties.hostName }
             { name: 'REDIS_PORT', value: string(redisDb.properties.port) }
