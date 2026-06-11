@@ -45,6 +45,7 @@ A scalable, secure, and highly available cloud-native auction platform demonstra
 
 The **Cloud Auction Platform** is a real-world cloud-native application that simulates an online auction system where users can:
 
+- **Interact via a modern web UI** built with Tailwind CSS
 - **Register and authenticate** using JWT or Google OAuth2
 - **Create auctions** for items with start and end times
 - **Place bids** on active auctions with automatic highest-bid validation
@@ -73,6 +74,7 @@ Module: **EC7204 - Cloud Computing**
 
 ### User-Facing Features
 
+- ✅ **Web Frontend**: Integrated UI built with Tailwind CSS
 - ✅ **User Registration**: Sign up with email and password
 - ✅ **User Login**: JWT-based authentication with token refresh
 - ✅ **Google OAuth2**: Single sign-on via Google
@@ -1628,8 +1630,7 @@ ec-7204-cloud-project/
 ├── deploy-infra.ps1                # Azure deployment script
 ├── .env.example                    # Environment variable template
 ├── init.sql                        # Database initialization script
-├── README.md                       # This file
-└── pom.xml                         # Parent Maven POM
+└── readme.md                       # This file
 
 ```
 
@@ -1688,6 +1689,10 @@ _Event flow from bid service through RabbitMQ to notification service._
 ---
 
 ## Links and References
+
+### Deployed Application
+
+- **API Gateway (Azure):** [https://api-gateway.redwater-a4cc5634.centralus.azurecontainerapps.io/](https://api-gateway.redwater-a4cc5634.centralus.azurecontainerapps.io/)
 
 ### Repository
 
@@ -1793,6 +1798,10 @@ This section demonstrates how the project satisfies the marking rubric.
 - Architecture diagrams and flows
 - Quick start guide
 - Troubleshooting section
+- Clear project structure
+
+---
+hooting section
 - Clear project structure
 
 ---
