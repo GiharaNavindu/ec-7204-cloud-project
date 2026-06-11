@@ -1,4 +1,4 @@
-# Cloud Auction Platform - Cloud-Native E-Auction System
+# Cloud Auction Platform - Cloud-Native E-Auction System - https://api-gateway.redwater-a4cc5634.centralus.azurecontainerapps.io/
 
 A scalable, secure, and highly available cloud-native auction platform demonstrating modern cloud computing principles including microservices architecture, event-driven communication, containerization, and comprehensive monitoring.
 
@@ -1801,7 +1801,9 @@ This section demonstrates how the project satisfies the marking rubric.
 - Clear project structure
 
 ---
+
 hooting section
+
 - Clear project structure
 
 ---
