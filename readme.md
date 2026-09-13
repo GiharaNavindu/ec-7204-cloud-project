@@ -106,6 +106,12 @@ Module: **EC7204 - Cloud Computing**
 
 ## Architecture Overview
 
+### Complete System Architecture (Azure + Local)
+
+![Cloud Auction Platform – System Architecture](Screenshots-diagrams/Diagrams/Cloud_Auction_System_Architecture.svg)
+
+_End-to-end view of the platform: API Gateway filter chain, microservices, databases, Redis, RabbitMQ messaging, CI/CD pipelines, and the equivalent local Docker Compose setup._
+
 ### High-Level System Architecture
 
 ![High-Level System Architecture](Screenshots-diagrams/Diagrams/High_Level_System_Architecture.png)
