@@ -11,3 +11,10 @@ target/
 .project
 .settings/
 .DS_Store
+
+# Terraform files
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfplan
