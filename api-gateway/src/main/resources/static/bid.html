@@ -169,7 +169,7 @@
     <script src="/js/api.js"></script>
     <script>
         const urlParams = new URLSearchParams(window.location.search);
-        const auctionId = urlParams.get('id');
+        const auctionId = parseInt(urlParams.get('id'), 10);
 
         if (!auctionId) window.location.href = "/auctions.html";
         if (!API.isAuthenticated()) window.location.href = "/index.html";
