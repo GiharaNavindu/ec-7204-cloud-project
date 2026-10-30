@@ -20,6 +20,11 @@ pipeline {
 
   stages {
     stage('Verify') {
+      environment {
+        SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_ID = 'mock-client-id'
+        SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_SECRET = 'mock-client-secret'
+        JWT_EXPIRATION = '60000'
+      }
       steps {
         sh '''
           set -euxo pipefail
