@@ -5,7 +5,8 @@ pipeline {
     timestamps()
     disableConcurrentBuilds()
     skipDefaultCheckout(false)
-    buildDiscarder(logRotator(numToKeepStr: '30'))
+    buildDiscarder(logRotator(numToKeepStr: '15'))
+    timeout(time: 30, unit: 'MINUTES') // Fail-safe: Prevent hung jobs from locking the server
   }
 
   environment {
@@ -24,7 +25,9 @@ pipeline {
           set -euxo pipefail
           java -version
           for service in api-gateway user-service auction-service bid-service notification-service; do
-            (cd "$service" && ./mvnw -B test)
+            echo "Running tests for $service..."
+            # Fail-safe: Ensure executable permissions before running Maven
+            (cd "$service" && chmod +x mvnw && ./mvnw -B clean test)
           done
         '''
       }
@@ -43,12 +46,18 @@ pipeline {
     stage('Build and push') {
       steps {
         script {
-          ['api-gateway', 'user-service', 'auction-service', 'bid-service', 'notification-service'].each { service ->
+          def services = ['api-gateway', 'user-service', 'auction-service', 'bid-service', 'notification-service']
+          services.each { service ->
             sh """
               set -euxo pipefail
+              echo "Building ${service}..."
               docker build --pull --file '${service}/Dockerfile' \
-                --tag '${REGISTRY}/${service}:${IMAGE_TAG}' .
+                --tag '${REGISTRY}/${service}:${IMAGE_TAG}' \
+                --tag '${REGISTRY}/${service}:latest' .
+              
+              echo "Pushing ${service}..."
               docker push '${REGISTRY}/${service}:${IMAGE_TAG}'
+              docker push '${REGISTRY}/${service}:latest'
             """
           }
         }
@@ -58,9 +67,11 @@ pipeline {
     stage('Deploy') {
       steps {
         script {
-          ['api-gateway', 'user-service', 'auction-service', 'bid-service', 'notification-service'].each { service ->
+          def services = ['api-gateway', 'user-service', 'auction-service', 'bid-service', 'notification-service']
+          services.each { service ->
             sh """
               set -euxo pipefail
+              echo "Deploying ${service} to Cloud Run..."
               gcloud run services update 'ruhuna-auction-${service}' \
                 --region '${REGION}' \
                 --image '${REGISTRY}/${service}:${IMAGE_TAG}' \
@@ -78,6 +89,11 @@ pipeline {
           set -euxo pipefail
           GATEWAY_URL="$(gcloud run services describe "ruhuna-auction-api-gateway" \
             --region "$REGION" --format='value(uri)')"
+          
+          echo "Testing Gateway URL: $GATEWAY_URL"
+          # Fail-safe: Allow Cloud Run load balancers to shift traffic before testing
+          sleep 10
+          
           curl --fail --retry 5 --retry-delay 5 "$GATEWAY_URL/actuator/health"
           curl --fail --retry 5 --retry-delay 5 "$GATEWAY_URL/api/users/status"
         '''
@@ -89,6 +105,15 @@ pipeline {
     always {
       junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
       archiveArtifacts allowEmptyArchive: true, artifacts: '**/target/*.jar'
+      
+      // Fail-safe: Prune old Docker images so the Jenkins VM disk does not fill up and crash
+      sh 'docker system prune -af --filter "until=24h" || true'
+    }
+    success {
+      echo "Pipeline completed successfully! Cloud Run has been updated."
+    }
+    failure {
+      echo "Pipeline failed. Check the logs above."
     }
   }
 }
